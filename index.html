@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Financije</title>
+<meta name="theme-color" content="#0f766e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Financije">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💶</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--bg:#f4f6f5;--card:#fff;--text:#16211f;--muted:#6b7a77;--line:#e3e8e6;--acc:#0f766e;--onacc:#fff;--acc2:#ccfbf1;--pos:#15803d;--neg:#c2410c;--warn:#fef3c7;--warnt:#92400e}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1514;--card:#17201f;--text:#e7eeec;--muted:#93a39f;--line:#26312f;--acc:#2dd4bf;--onacc:#06201d;--acc2:#134e4a;--pos:#4ade80;--neg:#fb923c;--warn:#422006;--warnt:#fde68a}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+#topbar{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;align-items:center;justify-content:space-between;padding:calc(8px + env(safe-area-inset-top)) 16px 8px;max-width:640px;margin:0 auto}
+#topbar button{background:none;border:0;color:var(--acc);font-size:30px;width:44px;height:44px;cursor:pointer}
+#topbar button.off{visibility:hidden}
+#monthLabel{font-weight:700;font-size:18px}
+#app{max-width:640px;margin:0 auto;padding:0 16px calc(110px + env(safe-area-inset-bottom))}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.card h3{margin:0 0 10px;font-size:16px}
+.card p{margin:6px 0}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{display:flex;flex-direction:column;gap:4px}.stat b{font-size:20px}.stat.big b{font-size:28px}
+.pos{color:var(--pos)}.neg{color:var(--neg)}.muted{color:var(--muted)}.small{font-size:13px}.center{text-align:center}
+.warn{background:var(--warn);color:var(--warnt)}
+.bar-row{margin:10px 0}
+.bar-label{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:5px}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc);border-radius:4px}
+.bar.near i{background:#d97706}.bar.over i{background:#dc2626}
+.day{font-size:13px;color:var(--muted);font-weight:600;margin:14px 0 2px}
+.list .day:first-child{margin-top:0}
+.tx{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.tx:last-child{border-bottom:0}
+.ic{font-size:21px;width:38px;height:38px;display:grid;place-items:center;background:var(--bg);border-radius:10px;flex:none}
+.tx-main{flex:1;min-width:0}.tx-main div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx b{white-space:nowrap}
+.tag{font-size:11px;background:var(--acc2);color:var(--acc);padding:1px 6px;border-radius:6px;vertical-align:middle}
+.brow{padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}.brow:last-child{border-bottom:0}
+.row-btn{padding:14px 2px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+.row-btn:last-child{border-bottom:0}
+.btn{display:block;width:100%;padding:13px;border:0;border-radius:12px;font:inherit;font-weight:600;cursor:pointer;margin-top:12px;background:var(--line);color:var(--text)}
+.btn.primary{background:var(--acc);color:var(--onacc)}
+.btn.danger{background:none;color:#dc2626}
+.btn.link{background:none;color:var(--acc);font-weight:500}
+.btn.small{width:auto;display:inline-block;padding:8px 14px;font-size:14px}
+.btn.back{width:auto;padding:4px 0;margin:0 0 8px;text-align:left}
+.btn:disabled{opacity:.6}
+label{display:block;font-size:14px;color:var(--muted);margin-top:12px}
+input,select{display:block;width:100%;margin-top:4px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit;font-size:16px}
+input.amount{font-size:32px;font-weight:700;text-align:center;margin-top:4px}
+label.switch{display:flex;align-items:center;gap:10px;color:var(--text)}
+label.switch input{width:22px;height:22px;margin:0;flex:none}
+.seg{display:flex;background:var(--line);border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;padding:9px;border-radius:9px;font:inherit;color:var(--text);cursor:pointer}
+.seg button.on{background:var(--card);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:20px;padding:7px 12px;font:inherit;font-size:14px;cursor:pointer}
+.chip.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+#nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:6}
+#nav button{background:none;border:0;color:var(--muted);font:inherit;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;width:66px;cursor:pointer}
+#nav button span{font-size:22px}
+#nav button.on{color:var(--acc);font-weight:600}
+#nav .gap{width:66px}
+#fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;border:0;background:var(--acc);color:var(--onacc);font-size:34px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:7;cursor:pointer}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10;display:flex;align-items:flex-end;justify-content:center}
+#sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom))}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 10px}
+#sheet h2{margin:4px 0 14px;font-size:20px}
+#toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.auth{margin-top:10vh;text-align:center}.auth label{text-align:left}
+.logo{font-size:52px}.auth h1{margin:4px 0}
+.code{font-size:30px;font-weight:700;letter-spacing:5px;text-align:center;padding:12px;background:var(--bg);border-radius:12px;margin:6px 0;cursor:pointer}
+.msg{min-height:1em;margin-top:12px}
+#reader{width:100%;border-radius:14px;overflow:hidden;background:#000;min-height:240px}
+#reader video{border-radius:14px}
+.btn.scan{background:var(--acc2);color:var(--acc);margin:0 0 4px}
+label.btn{text-align:center;font-size:16px}
+</style>
+</head>
+<body>
+<div id="topbar" hidden>
+  <button id="prevM" onclick="changeMonth(-1)" aria-label="Prethodni mjesec">‹</button>
+  <div id="monthLabel"></div>
+  <button id="nextM" onclick="changeMonth(1)" aria-label="Sljedeći mjesec">›</button>
+</div>
+<div id="app"><p class="center muted">Učitavam…</p></div>
+<nav id="nav" hidden>
+  <button data-tab="pregled" onclick="go('pregled')"><span>📊</span>Pregled</button>
+  <button data-tab="tx" onclick="go('tx')"><span>📋</span>Transakcije</button>
+  <div class="gap"></div>
+  <button data-tab="budzet" onclick="go('budzet')"><span>🎯</span>Budžet</button>
+  <button data-tab="vise" onclick="go('vise')"><span>⚙️</span>Više</button>
+</nav>
+<button id="fab" hidden onclick="openNew()" aria-label="Novi unos">+</button>
+<div id="overlay" hidden onclick="if(event.target===this)closeSheet()"><div id="sheet"></div></div>
+<div id="toast"></div>
+
+<script>
+// =====================================================================
+//  OVDJE ZALIJEPI PODATKE IZ SVOG SUPABASE PROJEKTA "Financije"
+//  (Project Settings -> API: Project URL i anon/public key)
+// =====================================================================
+const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
+// =====================================================================
+
+const VERSION = 'v2';
+const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
+const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
+const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const ymKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+
+function parseAmount(s){
+  s = String(s).trim().replace(/\s/g, '').replace('€', '');
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+}
+let toastTimer;
+function toast(m){
+  const t = $('#toast'); t.textContent = m; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+function hrError(m){
+  const map = {
+    'Invalid login credentials': 'Pogrešan email ili lozinka.',
+    'User already registered': 'Za taj email već postoji račun.',
+    'Email not confirmed': 'Email još nije potvrđen – provjeri inbox.'
+  };
+  return map[m] || m;
+}
+
+let sb, user = null, profile = null, partner = null;
+let cats = [], txs = [], shareTxs = [], recs = [];
+let month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
+let tab = 'pregled', txFilter = 'sve', authMode = 'login';
+let draft = null, rDraft = null;
+
+// ---------------- POKRETANJE ----------------
+async function init(){
+  if (SUPABASE_URL.startsWith('OVDJE')) {
+    $('#app').innerHTML = `<div class="card auth"><div class="logo">🔧</div><h3>Još nije povezano sa Supabaseom</h3>
+      <p class="muted">Otvori index.html i na vrhu skripte zalijepi Project URL i anon key iz svog Supabase projekta.</p></div>`;
+    return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { user = session.user; await startApp(); } else showAuth();
+  sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { user = null; showAuth(); } });
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && user && profile && $('#overlay').hidden) {
+      await loadProfile(); await runRecurring(); await loadMonth(); render();
+    }
+  });
+}
+
+function showAuth(msg){
+  $('#topbar').hidden = true; $('#nav').hidden = true; $('#fab').hidden = true;
+  const reg = authMode === 'register';
+  $('#app').innerHTML = `<div class="auth card">
+    <div class="logo">💶</div><h1>Financije</h1>
+    <p class="muted">${reg ? 'Napravi račun' : 'Prijavi se'}</p>
+    ${reg ? '<label>Ime<input id="aName" autocomplete="given-name" placeholder="npr. Luka"></label>' : ''}
+    <label>Email<input id="aEmail" type="email" autocomplete="email"></label>
+    <label>Lozinka<input id="aPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}"></label>
+    <button class="btn primary" id="aGo">${reg ? 'Registracija' : 'Prijava'}</button>
+    <button class="btn link" id="aSwitch">${reg ? 'Već imaš račun? Prijavi se' : 'Nemaš račun? Registriraj se'}</button>
+    <p id="aMsg" class="msg">${esc(msg || '')}</p></div>`;
+  $('#aSwitch').onclick = () => { authMode = reg ? 'login' : 'register'; showAuth(); };
+  $('#aGo').onclick = doAuth;
+  $('#aPass').onkeydown = e => { if (e.key === 'Enter') doAuth(); };
+}
+
+async function doAuth(){
+  const email = $('#aEmail').value.trim(), password = $('#aPass').value, msg = $('#aMsg');
+  msg.textContent = '';
+  if (!email || password.length < 6) { msg.textContent = 'Upiši email i lozinku (najmanje 6 znakova).'; return; }
+  $('#aGo').disabled = true;
+  try {
+    if (authMode === 'login') {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      user = data.user; await startApp();
+    } else {
+      const name = $('#aName').value.trim();
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { display_name: name } } });
+      if (error) throw error;
+      if (data.session) { user = data.user; await startApp(); }
+      else { authMode = 'login'; showAuth('Račun je napravljen. Potvrdi email preko linka koji ti je stigao, pa se prijavi.'); }
+    }
+  } catch (e) {
+    msg.textContent = hrError(e.message);
+  } finally {
+    const b = $('#aGo'); if (b) b.disabled = false;
+  }
+}
+
+async function startApp(){
+  $('#topbar').hidden = false; $('#nav').hidden = false; $('#fab').hidden = false;
+  $('#app').innerHTML = '<p class="center muted">Učitavam…</p>';
+  await loadProfile();
+  if (!profile) {
+    $('#app').innerHTML = `<div class="card"><p>Profil nije pronađen. Je li SQL skripta pokrenuta u Supabaseu <b>prije</b> registracije?
+      Ako nije: pokreni je, obriši korisnika u Authentication → Users i registriraj se ponovno.</p>
+      <button class="btn" onclick="logout()">Odjava</button></div>`;
+    return;
+  }
+  await loadCats();
+  await runRecurring();
+  await loadMonth();
+  render();
+}
+
+// ---------------- UČITAVANJE PODATAKA ----------------
+async function loadProfile(){
+  const { data } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  profile = data; partner = null;
+  if (profile && profile.partner_id) {
+    const { data: p } = await sb.from('profiles').select('id,display_name').eq('id', profile.partner_id).maybeSingle();
+    partner = p;
+  }
+}
+async function loadCats(){
+  const { data } = await sb.from('categories').select('*').order('sort').order('name');
+  cats = data || [];
+}
+const catById = id => cats.find(c => c.id === id);
+const myCats = kind => cats.filter(c => c.user_id === user.id && c.kind === kind);
+
+async function loadMonth(){
+  const s = iso(month), e = iso(new Date(month.getFullYear(), month.getMonth() + 1, 0));
+  const { data, error } = await sb.from('transactions').select('*')
+    .gte('date', s).lte('date', e)
+    .order('date', { ascending: false }).order('created_at', { ascending: false });
+  if (error) toast(error.message);
+  txs = data || [];
+  if (partner) {
+    const { data: sh } = await sb.from('transactions').select('user_id,amount,kind')
+      .eq('is_shared', true).in('kind', ['expense', 'settlement']);
+    shareTxs = (sh || []).filter(t => t.user_id === user.id || t.user_id === partner.id);
+  } else shareTxs = [];
+}
+async function loadRecs(){
+  const { data } = await sb.from('recurring').select('*').order('day_of_month');
+  recs = data || [];
+}
+
+function initialLastMonth(day){
+  const now = new Date();
+  // ako je dan već prošao ovaj mjesec, kreće od idućeg; inače i ovaj mjesec
+  return day < now.getDate() ? ymKey(now) : ymKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+}
+
+async function runRecurring(){
+  const { data: rs, error } = await sb.from('recurring').select('*').eq('active', true);
+  if (error || !rs) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const curKey = ymKey(today);
+  for (const r of rs) {
+    let [y, m] = (r.last_month || initialLastMonth(r.day_of_month)).split('-').map(Number);
+    let last = r.last_month;
+    const rows = [];
+    for (let i = 0; i < 24; i++) {
+      m++; if (m > 12) { m = 1; y++; }
+      const key = `${y}-${pad(m)}`;
+      if (key > curKey) break;
+      const dim = new Date(y, m, 0).getDate();
+      const dt = new Date(y, m - 1, Math.min(r.day_of_month, dim));
+      if (dt > today) break;
+      rows.push({ user_id: r.user_id, kind: r.kind, amount: r.amount, category_id: r.category_id,
+        date: iso(dt), note: r.note, is_shared: r.is_shared, recurring_id: r.id });
+      last = key;
+    }
+    if (rows.length) {
+      const { error: e1 } = await sb.from('transactions').upsert(rows, { onConflict: 'recurring_id,date', ignoreDuplicates: true });
+      if (!e1) await sb.from('recurring').update({ last_month: last }).eq('id', r.id);
+    }
+  }
+}
+
+// ---------------- IZRAČUNI ----------------
+const mine = () => txs.filter(t => t.user_id === user.id);
+function totals(){
+  let inc = 0, exp = 0;
+  for (const t of mine()) { if (t.kind === 'income') inc += +t.amount; else if (t.kind === 'expense') exp += +t.amount; }
+  return { inc, exp };
+}
+function spentByCat(){
+  const m = {};
+  for (const t of mine()) if (t.kind === 'expense') { const k = t.category_id || 'none'; m[k] = (m[k] || 0) + +t.amount; }
+  return m;
+}
+// > 0: partner duguje meni; < 0: ja dugujem partneru
+function balance(){
+  let b = 0;
+  for (const t of shareTxs) {
+    const a = +t.amount, me = t.user_id === user.id;
+    if (t.kind === 'expense') b += me ? a / 2 : -a / 2;
+    else if (t.kind === 'settlement') b += me ? a : -a;
+  }
+  return Math.round(b * 100) / 100;
+}
+
+// ---------------- PRIKAZ ----------------
+function go(t){
+  tab = t;
+  if (t === 'rec') loadRecs().then(render);
+  render(); window.scrollTo(0, 0);
+}
+async function changeMonth(d){
+  month = new Date(month.getFullYear(), month.getMonth() + d, 1);
+  $('#monthLabel').textContent = `${MONTHS[month.getMonth()]} ${month.getFullYear()}`;
+  await loadMonth(); render();
+}
+function render(){
+  const monthTab = ['pregled', 'tx', 'budzet'].includes(tab);
+  $('#prevM').classList.toggle('off', !monthTab);
+  $('#nextM').classList.toggle('off', !monthTab);
+  $('#monthLabel').textContent = monthTab ? `${MONTHS[month.getMonth()]} ${month.getFullYear()}` : 'Više';
+  const navTab = ['kat', 'rec', 'partner'].includes(tab) ? 'vise' : tab;
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navTab));
+  const views = { pregled: renderPregled, tx: renderTx, budzet: renderBudget, vise: renderMore, kat: renderKat, rec: renderRec, partner: renderPartner };
+  $('#app').innerHTML = views[tab]();
+}
+
+function renderPregled(){
+  const { inc, exp } = totals(), sal = inc - exp;
+  const by = spentByCat();
+  const rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  const max = rows.length ? rows[0][1] : 1;
+  let h = `<div class="summary">
+      <div class="card stat"><span class="muted small">Prihodi</span><b class="pos">${eur.format(inc)}</b></div>
+      <div class="card stat"><span class="muted small">Troškovi</span><b class="neg">${eur.format(exp)}</b></div>
+    </div>
+    <div class="card stat big"><span class="muted small">Saldo mjeseca</span><b class="${sal >= 0 ? 'pos' : 'neg'}">${eur.format(sal)}</b></div>`;
+  const over = myCats('expense').filter(c => c.budget > 0 && (by[c.id] || 0) > +c.budget);
+  if (over.length) h += `<div class="card warn">⚠️ Prekoračen budžet: ${over.map(c => esc(c.icon + ' ' + c.name)).join(', ')}</div>`;
+  h += '<div class="card"><h3>Troškovi po kategorijama</h3>';
+  if (!rows.length) h += '<p class="muted">Još nema troškova u ovom mjesecu. Dodaj prvi gumbom +.</p>';
+  for (const [id, v] of rows) {
+    const c = catById(id);
+    h += `<div class="bar-row"><div class="bar-label"><span>${c ? esc(c.icon + ' ' + c.name) : '📦 Bez kategorije'}</span><span>${eur.format(v)}</span></div>
+      <div class="bar"><i style="width:${(v / max * 100).toFixed(1)}%"></i></div></div>`;
+  }
+  h += '</div>';
+  if (partner) h += renderShareCard();
+  return h;
+}
+
+function renderShareCard(){
+  const b = balance(), pn = esc(partner.display_name);
+  let txt, btn = '';
+  if (Math.abs(b) < 0.01) txt = 'Poravnati ste ✅';
+  else if (b > 0) txt = `${pn} ti duguje <b>${eur.format(b)}</b>`;
+  else { txt = `Ti duguješ <b>${eur.format(-b)}</b> (${pn})`; btn = `<button class="btn small primary" onclick="settle(${-b})">Podmirio sam</button>`; }
+  return `<div class="card"><h3>💑 Zajedničko · ${pn}</h3><p>${txt}</p>${btn}
+    <p class="muted small">Zajednički troškovi dijele se pola-pola. U tvoje troškove gore ulaze samo unosi koje si ti platio.</p></div>`;
+}
+async function settle(a){
+  if (!confirm(`Zabilježiti da si platio ${eur.format(a)}?`)) return;
+  const { error } = await sb.from('transactions').insert({ kind: 'settlement', amount: a, is_shared: true, note: 'Podmirenje', date: iso(new Date()) });
+  if (error) return toast(error.message);
+  toast('Zabilježeno'); await loadMonth(); render();
+}
+
+function fmtDay(s){
+  const [y, m, d] = s.split('-').map(Number);
+  return `${DAYS[new Date(y, m - 1, d).getDay()]}, ${d}. ${m}.`;
+}
+
+function renderTx(){
+  let list = txs;
+  if (txFilter === 'moje') list = list.filter(t => t.user_id === user.id);
+  if (txFilter === 'zaj') list = list.filter(t => t.is_shared);
+  let h = '';
+  if (partner) h += `<div class="seg">${[['sve','Sve'],['moje','Moje'],['zaj','Zajedničko']]
+    .map(([k, l]) => `<button class="${txFilter === k ? 'on' : ''}" onclick="txFilter='${k}';render()">${l}</button>`).join('')}</div>`;
+  if (!list.length) return h + '<div class="card"><p class="muted">Nema unosa za ovaj mjesec.</p></div>';
+  let cur = '';
+  h += '<div class="card list">';
+  for (const t of list) {
+    if (t.date !== cur) { cur = t.date; h += `<div class="day">${fmtDay(t.date)}</div>`; }
+    const c = catById(t.category_id), own = t.user_id === user.id, st = t.kind === 'settlement';
+    const icon = st ? '🤝' : (c ? c.icon : '📦');
+    const name = st ? 'Podmirenje' : (c ? c.name : 'Bez kategorije');
+    const sign = t.kind === 'income' ? '+' : t.kind === 'expense' ? '−' : '';
+    const sub = [t.note && !st ? t.note : '', !own ? 'platio/la ' + (partner ? partner.display_name : '') : ''].filter(Boolean).join(' · ');
+    h += `<div class="tx" ${own ? `onclick="openTx('${t.id}')"` : ''}>
+      <span class="ic">${esc(icon)}</span>
+      <div class="tx-main"><div>${esc(name)}${t.is_shared && !st ? ' <span class="tag">zajedničko</span>' : ''}</div>${sub ? `<div class="muted small">${esc(sub)}</div>` : ''}</div>
+      <b class="${t.kind === 'income' ? 'pos' : t.kind === 'expense' ? 'neg' : ''}">${sign}${eur.format(t.amount)}</b></div>`;
+  }
+  return h + '</div>';
+}
+
+function progress(s, b, slim){
+  const p = Math.min(100, s / b * 100);
+  const cls = s > b ? 'over' : p > 80 ? 'near' : '';
+  return `<div class="bar ${cls}"><i style="width:${p.toFixed(1)}%"></i></div>` +
+    (slim ? '' : `<p class="small muted">${s > b ? 'Prekoračeno za ' + eur.format(s - b) : 'Ostalo ' + eur.format(b - s)}</p>`);
+}
+function renderBudget(){
+  const by = spentByCat(), ec = myCats('expense');
+  const withB = ec.filter(c => c.budget > 0);
+  const totB = withB.reduce((s, c) => s + +c.budget, 0);
+  const totS = withB.reduce((s, c) => s + (by[c.id] || 0), 0);
+  let h = '';
+  if (totB > 0) h += `<div class="card"><h3>Ukupno (kategorije s budžetom)</h3><div class="bar-label"><span>${eur.format(totS)}</span><span>${eur.format(totB)}</span></div>${progress(totS, totB)}</div>`;
+  h += '<div class="card list"><p class="muted small">Dodirni kategoriju da postaviš mjesečni budžet.</p>';
+  for (const c of ec) {
+    const s = by[c.id] || 0, b = +c.budget || 0;
+    h += `<div class="brow" onclick="editBudget('${c.id}')"><div class="bar-label"><span>${esc(c.icon + ' ' + c.name)}</span>
+      <span>${b > 0 ? eur.format(s) + ' / ' + eur.format(b) : '<span class="muted">' + eur.format(s) + ' · bez budžeta</span>'}</span></div>
+      ${b > 0 ? progress(s, b, true) : ''}</div>`;
+  }
+  return h + '</div>';
+}
+function editBudget(id){
+  const c = catById(id);
+  openSheet(`<h2>${esc(c.icon + ' ' + c.name)}</h2>
+    <label>Mjesečni budžet (€) – ostavi prazno za bez budžeta<input id="bAmt" inputmode="decimal" value="${c.budget ? String(c.budget).replace('.', ',') : ''}"></label>
+    <button class="btn primary" onclick="saveBudget('${id}')">Spremi</button>`);
+  setTimeout(() => $('#bAmt').focus(), 100);
+}
+async function saveBudget(id){
+  const v = $('#bAmt').value.trim();
+  const a = v ? parseAmount(v) : null;
+  if (v && !(a >= 0)) return toast('Neispravan iznos');
+  const { error } = await sb.from('categories').update({ budget: a || null }).eq('id', id);
+  if (error) return toast(error.message);
+  closeSheet(); await loadCats(); render();
+}
+
+function renderMore(){
+  return `<div class="card list">
+    <div class="row-btn" onclick="editName()"><span>👤 Ime</span><span class="muted">${esc(profile.display_name)}</span></div>
+    <div class="row-btn" onclick="go('kat')"><span>🏷️ Kategorije</span><span class="muted">›</span></div>
+    <div class="row-btn" onclick="go('rec')"><span>🔁 Ponavljajući unosi</span><span class="muted">›</span></div>
+    <div class="row-btn" onclick="go('partner')"><span>💑 Partner</span><span class="muted">${partner ? esc(partner.display_name) : 'nije povezano'} ›</span></div>
+    <div class="row-btn" onclick="exportCsv()"><span>⬇️ Izvoz u CSV (Excel)</span></div>
+    <div class="row-btn" onclick="logout()"><span>🚪 Odjava</span></div></div>
+    <p class="muted small center">${esc(user.email)} · Financije ${VERSION}</p>`;
+}
+const back = () => `<button class="btn link back" onclick="go('vise')">‹ Natrag</button>`;
+
+function editName(){
+  openSheet(`<h2>Ime</h2><label>Kako da te aplikacija zove<input id="nName" value="${esc(profile.display_name)}"></label>
+    <button class="btn primary" onclick="saveName()">Spremi</button>`);
+}
+async function saveName(){
+  const n = $('#nName').value.trim(); if (!n) return;
+  const { error } = await sb.from('profiles').update({ display_name: n }).eq('id', user.id);
+  if (error) return toast(error.message);
+  profile.display_name = n; closeSheet(); render();
+}
+
+function renderKat(){
+  const sec = (k, t) => `<h3>${t}</h3>` + myCats(k).map(c =>
+      `<div class="row-btn" onclick="editCat('${c.id}')"><span>${esc(c.icon)} ${esc(c.name)}</span><span class="muted">›</span></div>`).join('') +
+    `<button class="btn small" onclick="editCat(null,'${k}')">+ Nova kategorija</button>`;
+  return back() + `<div class="card list">${sec('expense', 'Troškovi')}</div><div class="card list">${sec('income', 'Prihodi')}</div>`;
+}
+function editCat(id, kind){
+  const c = id ? catById(id) : { icon: '📦', name: '', kind };
+  openSheet(`<h2>${id ? 'Uredi kategoriju' : 'Nova kategorija'}</h2>
+    <label>Ikona (emoji)<input id="cIcon" value="${esc(c.icon)}" maxlength="8"></label>
+    <label>Naziv<input id="cName" value="${esc(c.name)}"></label>
+    <button class="btn primary" onclick="saveCat(${id ? `'${id}'` : 'null'},'${c.kind}')">Spremi</button>
+    ${id ? `<button class="btn danger" onclick="delCat('${id}')">Obriši kategoriju</button>
+    <p class="muted small center">Postojeći unosi ostaju, ali bez kategorije.</p>` : ''}`);
+}
+async function saveCat(id, kind){
+  const name = $('#cName').value.trim(), icon = $('#cIcon').value.trim() || '📦';
+  if (!name) return toast('Upiši naziv');
+  const q = id ? sb.from('categories').update({ name, icon }).eq('id', id)
+               : sb.from('categories').insert({ name, icon, kind, sort: 100 });
+  const { error } = await q;
+  if (error) return toast(error.message);
+  closeSheet(); await loadCats(); render();
+}
+async function delCat(id){
+  if (!confirm('Obrisati kategoriju?')) return;
+  const { error } = await sb.from('categories').delete().eq('id', id);
+  if (error) return toast(error.message);
+  closeSheet(); await loadCats(); await loadMonth(); render();
+}
+
+function renderRec(){
+  let h = back() + `<div class="card list"><p class="muted small">Ponavljajući unosi (stanarina, pretplate, plaća…) dodaju se sami svaki mjesec na zadani dan, kad otvoriš aplikaciju.</p>`;
+  if (!recs.length) h += '<p class="muted">Još nema ponavljajućih unosa.</p>';
+  for (const r of recs) {
+    const c = catById(r.category_id);
+    h += `<div class="tx" onclick="editRec('${r.id}')"><span class="ic">${esc(c ? c.icon : '📦')}</span>
+      <div class="tx-main"><div>${esc(r.note || (c ? c.name : ''))}</div><div class="muted small">svakog ${r.day_of_month}. u mjesecu${r.active ? '' : ' · pauzirano'}${r.is_shared ? ' · zajedničko' : ''}</div></div>
+      <b class="${r.kind === 'income' ? 'pos' : 'neg'}">${eur.format(r.amount)}</b></div>`;
+  }
+  return h + `<button class="btn primary" onclick="editRec(null)">+ Dodaj ponavljajući unos</button></div>`;
+}
+function editRec(id){
+  const r = id ? recs.find(x => x.id === id) : null;
+  rDraft = r ? { ...r, amount: String(r.amount).replace('.', ',') }
+             : { kind: 'expense', amount: '', category_id: null, day_of_month: 1, note: '', is_shared: false, active: true };
+  showRecSheet();
+}
+function showRecSheet(){
+  const d = rDraft, cs = myCats(d.kind);
+  openSheet(`<h2>${d.id ? 'Uredi' : 'Novi'} ponavljajući unos</h2>
+    <div class="seg"><button class="${d.kind === 'expense' ? 'on' : ''}" onclick="rKind('expense')">Trošak</button><button class="${d.kind === 'income' ? 'on' : ''}" onclick="rKind('income')">Prihod</button></div>
+    <label>Naziv<input id="rNote" value="${esc(d.note || '')}" placeholder="npr. Stanarina"></label>
+    <label>Iznos (€)<input id="rAmt" inputmode="decimal" value="${esc(d.amount)}"></label>
+    <label>Kategorija<select id="rCat">${cs.map(c => `<option value="${c.id}" ${c.id === d.category_id ? 'selected' : ''}>${esc(c.icon + ' ' + c.name)}</option>`).join('')}</select></label>
+    <label>Dan u mjesecu<input id="rDay" type="number" min="1" max="31" value="${d.day_of_month}"></label>
+    ${partner && d.kind === 'expense' ? `<label class="switch"><input type="checkbox" id="rShared" ${d.is_shared ? 'checked' : ''}> Zajednički trošak</label>` : ''}
+    ${d.id ? `<label class="switch"><input type="checkbox" id="rActive" ${d.active ? 'checked' : ''}> Aktivno</label>` : ''}
+    <button class="btn primary" onclick="saveRec()">Spremi</button>
+    ${d.id ? '<button class="btn danger" onclick="delRec()">Obriši</button>' : ''}`);
+}
+function rSync(){
+  const d = rDraft;
+  d.note = $('#rNote').value; d.amount = $('#rAmt').value;
+  d.category_id = $('#rCat').value || null;
+  d.day_of_month = parseInt($('#rDay').value) || 1;
+  const s = $('#rShared'); if (s) d.is_shared = s.checked;
+  const a = $('#rActive'); if (a) d.active = a.checked;
+}
+function rKind(k){ rSync(); rDraft.kind = k; rDraft.category_id = null; if (k === 'income') rDraft.is_shared = false; showRecSheet(); }
+async function saveRec(){
+  rSync();
+  const d = rDraft, a = parseAmount(d.amount);
+  if (!(a > 0)) return toast('Upiši iznos');
+  if (!d.category_id) return toast('Odaberi kategoriju');
+  const day = Math.min(31, Math.max(1, d.day_of_month));
+  const row = { kind: d.kind, amount: a, category_id: d.category_id, day_of_month: day,
+    note: d.note.trim() || null, is_shared: d.kind === 'expense' && !!d.is_shared, active: d.active !== false };
+  let error;
+  if (d.id) {
+    const old = recs.find(x => x.id === d.id);
+    if (old && !old.active && row.active) row.last_month = initialLastMonth(day); // nakon pauze ne puni prošle mjesece
+    ({ error } = await sb.from('recurring').update(row).eq('id', d.id));
+  } else {
+    row.last_month = initialLastMonth(day);
+    ({ error } = await sb.from('recurring').insert(row));
+  }
+  if (error) return toast(error.message);
+  closeSheet(); await runRecurring(); await loadRecs(); await loadMonth(); render(); toast('Spremljeno');
+}
+async function delRec(){
+  if (!confirm('Obrisati ponavljajući unos? Već dodani unosi ostaju.')) return;
+  const { error } = await sb.from('recurring').delete().eq('id', rDraft.id);
+  if (error) return toast(error.message);
+  closeSheet(); await loadRecs(); render();
+}
+
+function renderPartner(){
+  if (partner) return back() + `<div class="card"><h3>💑 Povezan si s: ${esc(partner.display_name)}</h3>
+    <p class="muted">Troškove označene kao „zajednički” vidite oboje i aplikacija računa tko kome duguje. Sve ostalo ostaje privatno.</p>
+    <button class="btn danger" onclick="unlinkPartner()">Prekini povezivanje</button></div>`;
+  return back() + `<div class="card"><h3>Poveži se s partnerom</h3>
+    <p class="muted">Kad povežete račune, pojedine troškove možeš označiti kao zajedničke. Njih vidite oboje, a aplikacija računa tko kome duguje. Tvoji osobni unosi ostaju vidljivi samo tebi.</p>
+    <p>Tvoj kod (dodirni za kopiranje):</p>
+    <div class="code" onclick="copyCode()">${esc(profile.invite_code)}</div>
+    <p class="muted small">Pošalji ga partneru da ga upiše kod sebe – ili upiši njegov kod ovdje:</p>
+    <input id="pCode" placeholder="npr. A1B2C3" autocapitalize="characters">
+    <button class="btn primary" onclick="linkPartner()">Poveži</button></div>`;
+}
+function copyCode(){
+  if (navigator.clipboard) navigator.clipboard.writeText(profile.invite_code).then(() => toast('Kod kopiran'), () => {});
+}
+async function linkPartner(){
+  const code = $('#pCode').value.trim(); if (!code) return;
+  const { data, error } = await sb.rpc('link_partner', { p_code: code });
+  if (error) return toast(error.message);
+  toast('Povezano s: ' + data);
+  await loadProfile(); await loadCats(); await loadMonth(); render();
+}
+async function unlinkPartner(){
+  if (!confirm('Prekinuti povezivanje? Svatko zadržava svoje unose.')) return;
+  const { error } = await sb.rpc('unlink_partner');
+  if (error) return toast(error.message);
+  await loadProfile(); await loadCats(); await loadMonth(); render();
+}
+
+// ---------------- UNOS / UREĐIVANJE TRANSAKCIJE ----------------
+function openNew(){
+  const today = new Date();
+  // ako gledaš neki drugi mjesec, predloži datum u tom mjesecu
+  const d = (month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth()) ? today : month;
+  draft = { kind: 'expense', amount: '', category_id: null, date: iso(d), note: '', is_shared: false };
+  showTxSheet();
+}
+async function openTx(id){
+  const t = txs.find(x => x.id === id); if (!t) return;
+  if (t.kind === 'settlement') {
+    if (confirm('Obrisati ovo podmirenje?')) {
+      const { error } = await sb.from('transactions').delete().eq('id', id);
+      if (error) return toast(error.message);
+      await loadMonth(); render();
+    }
+    return;
+  }
+  draft = { ...t, amount: String(t.amount).replace('.', ',') };
+  showTxSheet();
+}
+function showTxSheet(){
+  const d = draft, cs = myCats(d.kind);
+  openSheet(`<h2>${d.id ? 'Uredi unos' : 'Novi unos'}</h2>
+    <div class="seg"><button class="${d.kind === 'expense' ? 'on' : ''}" onclick="setKind('expense')">Trošak</button><button class="${d.kind === 'income' ? 'on' : ''}" onclick="setKind('income')">Prihod</button></div>
+    ${!d.id && d.kind === 'expense' ? '<button class="btn scan" onclick="startScan()">📷 Skeniraj QR kod s računa</button>' : ''}
+    <input id="fAmt" class="amount" inputmode="decimal" placeholder="0,00 €" value="${esc(d.amount)}">
+    <div class="chips">${cs.map(c => `<button class="chip ${d.category_id === c.id ? 'on' : ''}" onclick="pickCat('${c.id}',this)">${esc(c.icon)} ${esc(c.name)}</button>`).join('')}</div>
+    <label>Datum<input id="fDate" type="date" value="${d.date}"></label>
+    <label>Bilješka<input id="fNote" value="${esc(d.note || '')}" placeholder="opcionalno"></label>
+    ${partner && d.kind === 'expense' ? `<label class="switch"><input type="checkbox" id="fShared" ${d.is_shared ? 'checked' : ''}> Zajednički trošak (dijeli se s: ${esc(partner.display_name)})</label>` : ''}
+    <button class="btn primary" onclick="saveTx()">Spremi</button>
+    ${d.id ? '<button class="btn danger" onclick="delTx()">Obriši</button>' : ''}`);
+  if (!d.id && !d.amount) setTimeout(() => { const a = $('#fAmt'); if (a) a.focus(); }, 150);
+}
+
+// ---------------- SKENIRANJE QR KODA S FISKALNOG RAČUNA ----------------
+// QR kod hrvatskog fiskalnog računa sadrži link tipa:
+// https://porezna.gov.hr/rn?jir=...&datv=20261031_1730&izn=1234  (izn = iznos u centima)
+let qr = null, lastBadQr = '';
+function parseFiscalQr(text){
+  try {
+    const p = new URL(String(text).trim()).searchParams;
+    const izn = p.get('izn'), datv = p.get('datv');
+    if (!izn) return null;
+    const amount = /[.,]/.test(izn) ? parseAmount(izn) : Math.round(Number(izn)) / 100;
+    let date = null;
+    const m = (datv || '').match(/^(\d{4})(\d{2})(\d{2})/);
+    if (m) date = `${m[1]}-${m[2]}-${m[3]}`;
+    return amount > 0 ? { amount, date } : null;
+  } catch (e) { return null; }
+}
+async function startScan(){
+  syncDraft();
+  if (typeof Html5Qrcode === 'undefined') return toast('Skener se nije učitao – provjeri internet');
+  lastBadQr = '';
+  openSheet(`<h2>Skeniraj račun</h2>
+    <p class="muted small">Usmjeri kameru na QR kod na dnu računa.</p>
+    <div id="reader"></div>
+    <label class="btn">🖼️ Odaberi sliku računa<input type="file" accept="image/*" hidden onchange="scanFile(this)"></label>
+    <button class="btn link" onclick="cancelScan()">Odustani</button>`);
+  qr = new Html5Qrcode('reader');
+  try {
+    await qr.start({ facingMode: 'environment' },
+      { fps: 10, qrbox: (w, h) => { const s = Math.floor(Math.min(w, h) * 0.75); return { width: s, height: s }; } },
+      onQr, () => {});
+  } catch (e) {
+    toast('Kamera nije dostupna – odaberi sliku računa');
+  }
+}
+function onQr(text){
+  const r = parseFiscalQr(text);
+  if (!r) { if (text !== lastBadQr) { lastBadQr = text; toast('Ovo nije QR kod fiskalnog računa'); } return; }
+  applyQr(r);
+}
+async function scanFile(input){
+  const f = input.files && input.files[0]; if (!f) return;
+  try {
+    if (qr && qr.isScanning) await qr.stop();
+    if (!qr) qr = new Html5Qrcode('reader');
+    const text = await qr.scanFile(f, false);
+    const r = parseFiscalQr(text);
+    if (!r) return toast('Na slici nije pronađen QR kod fiskalnog računa');
+    applyQr(r);
+  } catch (e) {
+    toast('QR kod nije pronađen na slici – probaj oštriju sliku');
+  }
+}
+async function applyQr(r){
+  await stopScan();
+  draft.amount = r.amount.toFixed(2).replace('.', ',');
+  if (r.date) draft.date = r.date;
+  showTxSheet();
+  toast('Iznos i datum preuzeti s računa – odaberi kategoriju');
+}
+async function stopScan(){
+  const q = qr; qr = null;
+  if (!q) return;
+  try { if (q.isScanning) await q.stop(); q.clear(); } catch (e) {}
+}
+async function cancelScan(){ await stopScan(); showTxSheet(); }
+function syncDraft(){
+  draft.amount = $('#fAmt').value; draft.date = $('#fDate').value; draft.note = $('#fNote').value;
+  const s = $('#fShared'); if (s) draft.is_shared = s.checked;
+}
+function setKind(k){ syncDraft(); draft.kind = k; draft.category_id = null; if (k === 'income') draft.is_shared = false; showTxSheet(); }
+function pickCat(id, el){
+  draft.category_id = id;
+  document.querySelectorAll('#sheet .chip').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+}
+async function saveTx(){
+  syncDraft();
+  const a = parseAmount(draft.amount);
+  if (!(a > 0)) return toast('Upiši iznos');
+  if (!draft.category_id) return toast('Odaberi kategoriju');
+  const row = { kind: draft.kind, amount: a, category_id: draft.category_id, date: draft.date || iso(new Date()),
+    note: (draft.note || '').trim() || null, is_shared: draft.kind === 'expense' && !!draft.is_shared };
+  const q = draft.id ? sb.from('transactions').update(row).eq('id', draft.id) : sb.from('transactions').insert(row);
+  const { error } = await q;
+  if (error) return toast(error.message);
+  closeSheet(); toast('Spremljeno');
+  const [y, m] = row.date.split('-').map(Number);
+  month = new Date(y, m - 1, 1);
+  await loadMonth(); render();
+}
+async function delTx(){
+  if (!confirm('Obrisati ovaj unos?')) return;
+  const { error } = await sb.from('transactions').delete().eq('id', draft.id);
+  if (error) return toast(error.message);
+  closeSheet(); await loadMonth(); render();
+}
+
+// ---------------- OSTALO ----------------
+function openSheet(h){ $('#sheet').innerHTML = '<div class="grab"></div>' + h; $('#overlay').hidden = false; }
+function closeSheet(){ if (qr) stopScan(); $('#overlay').hidden = true; $('#sheet').innerHTML = ''; }
+
+async function exportCsv(){
+  const { data, error } = await sb.from('transactions').select('*').eq('user_id', user.id).order('date');
+  if (error) return toast(error.message);
+  const kinds = { expense: 'Trošak', income: 'Prihod', settlement: 'Podmirenje' };
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [['Datum', 'Vrsta', 'Kategorija', 'Iznos', 'Bilješka', 'Zajedničko'].map(q).join(';')];
+  for (const t of data) {
+    const c = catById(t.category_id);
+    lines.push([t.date, kinds[t.kind], c ? c.name : '', String(t.amount).replace('.', ','), t.note || '', t.is_shared ? 'da' : 'ne'].map(q).join(';'));
+  }
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `financije-${iso(new Date())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function logout(){ await sb.auth.signOut(); user = null; profile = null; partner = null; showAuth(); }
+
+init();
+</script>
+</body>
+</html>
