@@ -112,7 +112,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -537,24 +537,39 @@ function renderKat(){
     `<button class="btn small" onclick="editCat(null,'${k}')">+ Nova kategorija</button>`;
   return back() + `<div class="card list">${sec('expense', 'Troškovi')}</div><div class="card list">${sec('income', 'Prihodi')}</div>`;
 }
-function editCat(id, kind){
+const EMOJIS = ['🛒','🍕','🍔','☕','🍺','🍷','🏠','💡','📶','📱','🚗','⛽','🚌','🅿️','🚕','✈️','🏨','👕','👟','💇','💊','🏥','🦷','🏋️','⚽','🎮','🎬','🎵','📚','🎓','🔬','💻','🎁','💐','🐾','🐶','👶','🧹','🔧','🛠️','💳','🏦','📈','💰','💶','💼','🧾','🎉','🚬','📦'];
+let catReturn = null; // ako je kategorija napravljena iz prozora za unos, vrati se u njega
+function editCat(id, kind, fromTx){
   const c = id ? catById(id) : { icon: '📦', name: '', kind };
-  openSheet(`<h2>${id ? 'Uredi kategoriju' : 'Nova kategorija'}</h2>
-    <label>Ikona (emoji)<input id="cIcon" value="${esc(c.icon)}" maxlength="8"></label>
-    <label>Naziv<input id="cName" value="${esc(c.name)}"></label>
+  catReturn = fromTx ? 'tx' : null;
+  openSheet(`<h2>${id ? 'Uredi kategoriju' : (kind === 'income' ? 'Nova kategorija prihoda' : 'Nova kategorija troška')}</h2>
+    <label>Naziv<input id="cName" value="${esc(c.name)}" placeholder="npr. Teretana"></label>
+    <label>Ikona<input id="cIcon" value="${esc(c.icon)}" maxlength="8" style="font-size:24px;text-align:center"></label>
+    <div class="chips">${EMOJIS.map(e => `<button class="chip" onclick="$('#cIcon').value='${e}'">${e}</button>`).join('')}</div>
     <button class="btn primary" onclick="saveCat(${id ? `'${id}'` : 'null'},'${c.kind}')">Spremi</button>
+    ${fromTx ? '<button class="btn link" onclick="catReturn=null;showTxSheet()">Odustani</button>' : ''}
     ${id ? `<button class="btn danger" onclick="delCat('${id}')">Obriši kategoriju</button>
     <p class="muted small center">Postojeći unosi ostaju, ali bez kategorije.</p>` : ''}`);
+  if (!id) setTimeout(() => { const n = $('#cName'); if (n) n.focus(); }, 150);
 }
 async function saveCat(id, kind){
   const name = $('#cName').value.trim(), icon = $('#cIcon').value.trim() || '📦';
   if (!name) return toast('Upiši naziv');
+  if (!id && myCats(kind).some(c => c.name.toLowerCase() === name.toLowerCase())) return toast('Ta kategorija već postoji');
   const q = id ? sb.from('categories').update({ name, icon }).eq('id', id)
-               : sb.from('categories').insert({ name, icon, kind, sort: 100 });
-  const { error } = await q;
+               : sb.from('categories').insert({ name, icon, kind, sort: 100 }).select().single();
+  const { data, error } = await q;
   if (error) return toast(error.message);
-  closeSheet(); await loadCats(); render();
+  await loadCats();
+  if (catReturn === 'tx' && draft) {
+    catReturn = null;
+    if (data) draft.category_id = data.id;
+    showTxSheet(); toast('Kategorija dodana');
+    return;
+  }
+  closeSheet(); render();
 }
+function newCatFromTx(){ syncDraft(); editCat(null, draft.kind, true); }
 async function delCat(id){
   if (!confirm('Obrisati kategoriju?')) return;
   const { error } = await sb.from('categories').delete().eq('id', id);
@@ -684,7 +699,7 @@ function showTxSheet(){
     <div class="seg"><button class="${d.kind === 'expense' ? 'on' : ''}" onclick="setKind('expense')">Trošak</button><button class="${d.kind === 'income' ? 'on' : ''}" onclick="setKind('income')">Prihod</button></div>
     ${!d.id && d.kind === 'expense' ? '<button class="btn scan" onclick="startScan()">📷 Skeniraj QR kod s računa</button>' : ''}
     <input id="fAmt" class="amount" inputmode="decimal" placeholder="0,00 €" value="${esc(d.amount)}">
-    <div class="chips">${cs.map(c => `<button class="chip ${d.category_id === c.id ? 'on' : ''}" onclick="pickCat('${c.id}',this)">${esc(c.icon)} ${esc(c.name)}</button>`).join('')}</div>
+    <div class="chips">${cs.map(c => `<button class="chip ${d.category_id === c.id ? 'on' : ''}" onclick="pickCat('${c.id}',this)">${esc(c.icon)} ${esc(c.name)}</button>`).join('')}<button class="chip" style="border-style:dashed" onclick="newCatFromTx()">＋ Nova</button></div>
     <label>Datum<input id="fDate" type="date" value="${d.date}"></label>
     <label>Bilješka<input id="fNote" value="${esc(d.note || '')}" placeholder="opcionalno"></label>
     ${partner && d.kind === 'expense' ? `<label class="switch"><input type="checkbox" id="fShared" ${d.is_shared ? 'checked' : ''}> Zajednički trošak (dijeli se s: ${esc(partner.display_name)})</label>` : ''}
