@@ -26,8 +26,8 @@ $$;
 
 -- partner vidi moje zajedničke račune
 drop policy if exists accounts_partner_select on public.accounts;
-create policy accounts_partner_select on public.accounts for select
-  using (shared and user_id = public.my_partner());
+create policy accounts_partner_select on public.accounts for select to authenticated
+  using (shared and user_id in (select p.partner_id from public.profiles p where p.id = auth.uid()));
 
 -- unosi: partner vidi zajedničke troškove i sve unose na zajedničkim računima
 drop policy if exists tx_select on public.transactions;
