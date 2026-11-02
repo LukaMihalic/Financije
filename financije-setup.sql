@@ -1,5 +1,5 @@
 -- =====================================================================
---  FINANCIJE – postavljanje baze u Supabaseu  (verzija 2)
+--  FINANCIJE – postavljanje baze u Supabaseu  (verzija 9)
 --  Pokreni CIJELU skriptu u: Supabase -> SQL Editor -> New query -> Run
 --  Sigurno ju je pokrenuti više puta – ništa se ne briše i ne duplicira.
 --  Usput napravi profil i kategorije za već registrirane korisnike.
@@ -19,6 +19,19 @@ create table if not exists public.profiles (
 -- stanje računa (v4)
 alter table public.profiles add column if not exists opening_balance numeric(12,2);
 alter table public.profiles add column if not exists opening_date    date;
+
+-- ---------- RAČUNI (v9) ----------
+create table if not exists public.accounts (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name            text not null,
+  icon            text not null default '🏦',
+  opening_balance numeric(12,2) not null default 0,
+  opening_date    date not null default current_date,
+  sort            int not null default 100,
+  archived        boolean not null default false,
+  created_at      timestamptz not null default now()
+);
 
 -- ---------- KATEGORIJE ----------
 create table if not exists public.categories (
@@ -62,6 +75,12 @@ create table if not exists public.transactions (
   unique (recurring_id, date)
 );
 create index if not exists transactions_user_date on public.transactions (user_id, date);
+alter table public.transactions add column if not exists account_id    uuid references public.accounts(id) on delete set null;
+alter table public.transactions add column if not exists to_account_id uuid references public.accounts(id) on delete set null;
+alter table public.recurring    add column if not exists account_id    uuid references public.accounts(id) on delete set null;
+alter table public.transactions drop constraint if exists transactions_kind_check;
+alter table public.transactions add constraint transactions_kind_check
+  check (kind in ('expense','income','settlement','transfer'));
 
 -- ---------- POMOĆNA FUNKCIJA: tko je moj partner ----------
 create or replace function public.my_partner() returns uuid
@@ -80,6 +99,12 @@ begin
     upper(substr(md5(random()::text || p_id::text), 1, 6))
   )
   on conflict (id) do nothing;
+
+  if not exists (select 1 from public.accounts where user_id = p_id) then
+    insert into public.accounts (user_id, name, icon, sort) values
+      (p_id, 'Tekući račun', '🏦', 1),
+      (p_id, 'Gotovina',     '💵', 2);
+  end if;
 
   if not exists (select 1 from public.categories where user_id = p_id) then
     insert into public.categories (user_id, name, kind, icon, sort) values
@@ -185,6 +210,11 @@ create policy categories_update on public.categories for update
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy categories_delete on public.categories for delete
   using (user_id = auth.uid());
+
+alter table public.accounts enable row level security;
+drop policy if exists accounts_all on public.accounts;
+create policy accounts_all on public.accounts for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 drop policy if exists recurring_all on public.recurring;
 create policy recurring_all on public.recurring for all
