@@ -162,7 +162,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v10';
+const VERSION = 'v10.1';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -196,7 +196,7 @@ let sb, user = null, profile = null, partner = null;
 let cats = [], txs = [], shareTxs = [], recs = [];
 let month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
 let tab = 'pregled', txFilter = 'sve', authMode = 'login';
-let draft = null, rDraft = null, accounts = [], accBals = {}, accErr = false;
+let draft = null, rDraft = null, accounts = [], accBals = {}, accErr = false, accErrMsg = '';
 
 // ---------------- POKRETANJE ----------------
 async function init(){
@@ -1361,7 +1361,7 @@ async function loadAccounts(){
     await sb.from('accounts').insert([{ name: 'Tekući račun', icon: '🏦', sort: 1 }, { name: 'Gotovina', icon: '💵', sort: 2 }]);
     ({ data, error } = await sb.from('accounts').select('*').order('sort').order('created_at'));
   }
-  accErr = !!error; accounts = data || [];
+  accErr = !!error; accErrMsg = error ? error.message : ''; accounts = data || [];
 }
 const activeAccs = () => accounts.filter(a => !a.archived);
 const accById = id => accounts.find(a => a.id === id);
@@ -1391,7 +1391,7 @@ async function loadAccBal(){
 }
 function fmtDate(s){ const [y, m, d] = s.split('-'); return `${+d}. ${+m}. ${y}.`; }
 function renderAccountsCard(){
-  if (accErr || !accounts.length) return `<div class="card warn">🏦 Za račune (PBZ, Revolut, gotovina) i prijenose pokreni skriptu <b>supabase-v9-racuni.sql</b> u Supabaseu, pa osvježi aplikaciju.</div>`;
+  if (accErr || !accounts.length) return `<div class="card warn">🏦 Za račune (PBZ, Revolut, gotovina) i prijenose pokreni skriptu <b>supabase-v9-v10.sql</b> u Supabaseu, pa osvježi aplikaciju.<br><span class="small">Poruka iz baze: ${esc(accErrMsg || 'nema nijednog računa')}</span></div>`;
   const act = activeAccs(), tot = act.reduce((s, a) => s + (accBals[a.id] || 0), 0);
   return `<div class="card click" onclick="go('racuni')"><div class="stat big"><span class="muted small">💳 Ukupno na računima</span>
     <b class="${tot < 0 ? 'neg' : ''}">${eur.format(tot)}</b></div>
