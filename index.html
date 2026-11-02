@@ -1355,7 +1355,12 @@ async function loadMonth(){
 
 // ---------------- RAČUNI ----------------
 async function loadAccounts(){
-  const { data, error } = await sb.from('accounts').select('*').order('sort').order('created_at');
+  let { data, error } = await sb.from('accounts').select('*').order('sort').order('created_at');
+  if (!error && data && !data.length) {
+    // novi korisnik bez računa – napravi osnovne
+    await sb.from('accounts').insert([{ name: 'Tekući račun', icon: '🏦', sort: 1 }, { name: 'Gotovina', icon: '💵', sort: 2 }]);
+    ({ data, error } = await sb.from('accounts').select('*').order('sort').order('created_at'));
+  }
   accErr = !!error; accounts = data || [];
 }
 const activeAccs = () => accounts.filter(a => !a.archived);
