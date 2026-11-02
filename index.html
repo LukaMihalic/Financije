@@ -112,7 +112,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -489,7 +489,7 @@ function renderBudget(){
       <span>${b > 0 ? eur.format(s) + ' / ' + eur.format(b) : '<span class="muted">' + eur.format(s) + ' · bez budžeta</span>'}</span></div>
       ${b > 0 ? progress(s, b, true) : ''}</div>`;
   }
-  return h + '</div>';
+  return h + `<button class="btn" onclick="editCat(null,'expense','budget')">＋ Nova kategorija</button></div>`;
 }
 function editBudget(id){
   const c = catById(id);
@@ -541,13 +541,13 @@ const EMOJIS = ['🛒','🍕','🍔','☕','🍺','🍷','🏠','💡','📶','�
 let catReturn = null; // ako je kategorija napravljena iz prozora za unos, vrati se u njega
 function editCat(id, kind, fromTx){
   const c = id ? catById(id) : { icon: '📦', name: '', kind };
-  catReturn = fromTx ? 'tx' : null;
+  catReturn = fromTx === 'budget' ? 'budget' : fromTx ? 'tx' : null;
   openSheet(`<h2>${id ? 'Uredi kategoriju' : (kind === 'income' ? 'Nova kategorija prihoda' : 'Nova kategorija troška')}</h2>
     <label>Naziv<input id="cName" value="${esc(c.name)}" placeholder="npr. Teretana"></label>
     <label>Ikona<input id="cIcon" value="${esc(c.icon)}" maxlength="8" style="font-size:24px;text-align:center"></label>
     <div class="chips">${EMOJIS.map(e => `<button class="chip" onclick="$('#cIcon').value='${e}'">${e}</button>`).join('')}</div>
     <button class="btn primary" onclick="saveCat(${id ? `'${id}'` : 'null'},'${c.kind}')">Spremi</button>
-    ${fromTx ? '<button class="btn link" onclick="catReturn=null;showTxSheet()">Odustani</button>' : ''}
+    ${catReturn === 'tx' ? '<button class="btn link" onclick="catReturn=null;showTxSheet()">Odustani</button>' : ''}
     ${id ? `<button class="btn danger" onclick="delCat('${id}')">Obriši kategoriju</button>
     <p class="muted small center">Postojeći unosi ostaju, ali bez kategorije.</p>` : ''}`);
   if (!id) setTimeout(() => { const n = $('#cName'); if (n) n.focus(); }, 150);
@@ -567,6 +567,11 @@ async function saveCat(id, kind){
     showTxSheet(); toast('Kategorija dodana');
     return;
   }
+  if (catReturn === 'budget' && data) {
+    catReturn = null; render(); editBudget(data.id);
+    return;
+  }
+  catReturn = null;
   closeSheet(); render();
 }
 function newCatFromTx(){ syncDraft(); editCat(null, draft.kind, true); }
