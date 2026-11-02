@@ -164,7 +164,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v11';
+const VERSION = 'v11.1';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -213,7 +213,9 @@ async function init(){
   sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { user = null; showAuth(); } });
   document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState === 'visible' && user && profile && $('#overlay').hidden) {
-      await loadProfile(); await runRecurring(); await loadMonth(); render();
+      await loadProfile(); await loadCats(); await loadAccounts();
+      await Promise.all([loadFavs(), loadGoals()].map(x => x.catch(() => {})));
+      await runRecurring(); await loadMonth(); render();
     }
   });
 }
@@ -1836,13 +1838,13 @@ async function linkPartner(){
   const { data, error } = await sb.rpc('link_partner', { p_code: code });
   if (error) return toast(error.message);
   toast('Povezano s: ' + data);
-  await loadProfile(); await loadCats(); await loadMonth(); render();
+  await loadProfile(); await loadCats(); await loadAccounts(); await loadMonth(); render();
 }
 async function unlinkPartner(){
   if (!confirm('Prekinuti povezivanje? Svatko zadržava svoje unose.')) return;
   const { error } = await sb.rpc('unlink_partner');
   if (error) return toast(error.message);
-  await loadProfile(); await loadCats(); await loadMonth(); render();
+  await loadProfile(); await loadCats(); await loadAccounts(); await loadMonth(); render();
 }
 
 // ---------------- UNOS / UREĐIVANJE TRANSAKCIJE ----------------
