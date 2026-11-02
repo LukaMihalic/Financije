@@ -112,7 +112,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -210,10 +210,17 @@ async function doAuth(){
 async function startApp(){
   $('#topbar').hidden = false; $('#nav').hidden = false; $('#fab').hidden = false;
   $('#app').innerHTML = '<p class="center muted">Učitavam…</p>';
-  await loadProfile();
+  let err = await loadProfile();
+  if (!profile && !err) {
+    // profil nedostaje – pokušaj ga napraviti
+    const { error } = await sb.rpc('ensure_my_profile');
+    err = error ? error.message : await loadProfile();
+  }
   if (!profile) {
-    $('#app').innerHTML = `<div class="card"><p>Profil nije pronađen. Je li SQL skripta pokrenuta u Supabaseu <b>prije</b> registracije?
-      Ako nije: pokreni je, obriši korisnika u Authentication → Users i registriraj se ponovno.</p>
+    $('#app').innerHTML = `<div class="card"><h3>Baza još nije postavljena</h3>
+      <p>U Supabaseu (SQL Editor) pokreni najnoviju skriptu <b>financije-setup.sql</b>, pa osvježi ovu stranicu.</p>
+      <p class="muted small">Poruka iz baze: ${esc(err || 'profil nije pronađen')}</p>
+      <button class="btn primary" onclick="location.reload()">Osvježi</button>
       <button class="btn" onclick="logout()">Odjava</button></div>`;
     return;
   }
@@ -225,7 +232,8 @@ async function startApp(){
 
 // ---------------- UČITAVANJE PODATAKA ----------------
 async function loadProfile(){
-  const { data } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  const { data, error } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (error) { profile = null; partner = null; return error.message; }
   profile = data; partner = null;
   if (profile && profile.partner_id) {
     const { data: p } = await sb.from('profiles').select('id,display_name').eq('id', profile.partner_id).maybeSingle();
