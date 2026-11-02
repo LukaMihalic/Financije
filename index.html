@@ -2,6 +2,7 @@
 <html lang="hr">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Financije</title>
 <meta name="theme-color" content="#0f766e">
@@ -162,7 +163,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v10.1';
+const VERSION = 'v10.2';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -2006,8 +2007,21 @@ async function exportCsv(){
 }
 async function logout(){ await sb.auth.signOut(); user = null; profile = null; partner = null; showAuth(); }
 
+// provjera nove verzije: ako je na GitHubu novija, osvježi aplikaciju
+async function checkUpdate(){
+  try {
+    const r = await fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' });
+    const m = (await r.text()).match(/const VERSION = '([^']+)'/);
+    if (m && m[1] !== VERSION && !sessionStorage.getItem('upd-' + m[1])) {
+      sessionStorage.setItem('upd-' + m[1], '1');
+      location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]));
+    }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 initTip();
 init();
+checkUpdate();
 </script>
 </body>
 </html>
