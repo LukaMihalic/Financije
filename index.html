@@ -112,7 +112,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -146,7 +146,7 @@ let sb, user = null, profile = null, partner = null;
 let cats = [], txs = [], shareTxs = [], recs = [];
 let month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
 let tab = 'pregled', txFilter = 'sve', authMode = 'login';
-let draft = null, rDraft = null;
+let draft = null, rDraft = null, accBal = null;
 
 // ---------------- POKRETANJE ----------------
 async function init(){
@@ -259,6 +259,53 @@ async function loadMonth(){
       .eq('is_shared', true).in('kind', ['expense', 'settlement']);
     shareTxs = (sh || []).filter(t => t.user_id === user.id || t.user_id === partner.id);
   } else shareTxs = [];
+  await loadAccBal();
+}
+
+// Stanje računa = početno stanje + prihodi − troškovi od datuma početnog stanja
+async function loadAccBal(){
+  accBal = null;
+  if (!profile || !profile.opening_date) return;
+  const { data, error } = await sb.from('transactions').select('user_id,kind,amount').gte('date', profile.opening_date);
+  if (error) return;
+  let b = +profile.opening_balance || 0;
+  for (const t of data || []) {
+    const a = +t.amount, me = t.user_id === user.id;
+    if (me && t.kind === 'income') b += a;
+    else if (me && (t.kind === 'expense' || t.kind === 'settlement')) b -= a;
+    else if (!me && t.kind === 'settlement') b += a; // partner ti je vratio novac
+  }
+  accBal = Math.round(b * 100) / 100;
+}
+function fmtDate(s){ const [y, m, d] = s.split('-'); return `${+d}. ${+m}. ${y}.`; }
+function editBalance(){
+  const today = iso(new Date());
+  openSheet(`<h2>💳 Stanje računa</h2>
+    <p class="muted small">Upiši koliko ti piše u bankovnoj aplikaciji. Od tog dana aplikacija sama dodaje prihode i oduzima troškove koje uneseš.</p>
+    <label>Stanje (€)<input id="obAmt" class="amount" inputmode="decimal" placeholder="0,00 €" value="${accBal !== null ? String(accBal.toFixed(2)).replace('.', ',') : ''}"></label>
+    <label>Na početku dana<input id="obDate" type="date" value="${today}"></label>
+    <p class="muted small">Troškovi i prihodi s tim datumom i kasnije se ubrajaju u stanje. Ako si danas već nešto potrošio i to je već skinuto s računa, odaberi sutrašnji datum ili ne unosi taj trošak dvaput.</p>
+    <button class="btn primary" onclick="saveBalance()">Spremi</button>
+    ${profile.opening_date ? '<button class="btn danger" onclick="clearBalance()">Ukloni praćenje stanja</button>' : ''}`);
+  setTimeout(() => { const a = $('#obAmt'); if (a) { a.focus(); a.select(); } }, 150);
+}
+async function saveBalance(){
+  const raw = $('#obAmt').value.trim();
+  const neg = raw.startsWith('-') || raw.startsWith('−');
+  const a = parseAmount(raw.replace(/^[-−]/, ''));
+  if (!(a >= 0)) return toast('Upiši iznos');
+  const val = neg ? -a : a, date = $('#obDate').value || iso(new Date());
+  const { error } = await sb.from('profiles').update({ opening_balance: val, opening_date: date }).eq('id', user.id);
+  if (error) return toast(/column|schema/i.test(error.message) ? 'Prvo pokreni novu SQL skriptu u Supabaseu' : error.message);
+  profile.opening_balance = val; profile.opening_date = date;
+  closeSheet(); await loadAccBal(); render(); toast('Stanje spremljeno');
+}
+async function clearBalance(){
+  if (!confirm('Ukloniti praćenje stanja računa? Unosi ostaju.')) return;
+  const { error } = await sb.from('profiles').update({ opening_balance: null, opening_date: null }).eq('id', user.id);
+  if (error) return toast(error.message);
+  profile.opening_balance = null; profile.opening_date = null; accBal = null;
+  closeSheet(); render();
 }
 async function loadRecs(){
   const { data } = await sb.from('recurring').select('*').order('day_of_month');
@@ -348,7 +395,16 @@ function renderPregled(){
   const by = spentByCat();
   const rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
   const max = rows.length ? rows[0][1] : 1;
-  let h = `<div class="summary">
+  let h = '';
+  if (profile.opening_date) {
+    h += `<div class="card stat big" onclick="editBalance()" style="cursor:pointer"><span class="muted small">💳 Stanje računa danas</span>
+      <b class="${accBal >= 0 ? '' : 'neg'}">${accBal === null ? '…' : eur.format(accBal)}</b>
+      <span class="muted small">od ${fmtDate(profile.opening_date)} · dodirni za usklađivanje</span></div>`;
+  } else {
+    h += `<div class="card"><p>💳 Upiši koliko imaš na računu, a aplikacija će dalje sama pratiti stanje.</p>
+      <button class="btn primary" onclick="editBalance()">Postavi stanje računa</button></div>`;
+  }
+  h += `<div class="summary">
       <div class="card stat"><span class="muted small">Prihodi</span><b class="pos">${eur.format(inc)}</b></div>
       <div class="card stat"><span class="muted small">Troškovi</span><b class="neg">${eur.format(exp)}</b></div>
     </div>
@@ -454,6 +510,7 @@ async function saveBudget(id){
 function renderMore(){
   return `<div class="card list">
     <div class="row-btn" onclick="editName()"><span>👤 Ime</span><span class="muted">${esc(profile.display_name)}</span></div>
+    <div class="row-btn" onclick="editBalance()"><span>💳 Stanje računa</span><span class="muted">${accBal !== null ? eur.format(accBal) : 'nije postavljeno'} ›</span></div>
     <div class="row-btn" onclick="go('kat')"><span>🏷️ Kategorije</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="go('rec')"><span>🔁 Ponavljajući unosi</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="go('partner')"><span>💑 Partner</span><span class="muted">${partner ? esc(partner.display_name) : 'nije povezano'} ›</span></div>
