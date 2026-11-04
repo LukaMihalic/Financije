@@ -164,7 +164,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v11.1';
+const VERSION = 'v11.2';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -262,6 +262,8 @@ async function doAuth(){
 }
 
 async function startApp(){
+  try { history.replaceState({ tab: 'pregled', depth: 0 }, ''); } catch (e) {}
+  navDepth = 0;
   $('#topbar').hidden = false; $('#nav').hidden = false; $('#fab').hidden = false;
   $('#app').innerHTML = '<p class="center muted">Učitavam…</p>';
   let err = await loadProfile();
@@ -1538,11 +1540,31 @@ function balance(){
 }
 
 // ---------------- PRIKAZ ----------------
-function go(t){
+// ---- tipka "natrag": zatvara prozor ili vraća na prethodnu stranicu
+let navDepth = 0, ignorePop = false, pendingSheetPush = false, pendingNav = null;
+function go(t, fromHistory){
+  if (!fromHistory && t !== tab) {
+    navDepth++;
+    if (ignorePop) pendingNav = { tab: t, depth: navDepth };
+    else history.pushState({ tab: t, depth: navDepth }, '');
+  }
   tab = t;
   if (t === 'rec') loadRecs().then(render);
   render(); window.scrollTo(0, 0);
 }
+function goBack(){ if (navDepth > 0) history.back(); else go('vise'); }
+window.addEventListener('popstate', e => {
+  if (ignorePop) {                      // povratak koji je pokrenulo zatvaranje prozora
+    ignorePop = false;
+    if (pendingNav) { history.pushState(pendingNav, ''); pendingNav = null; }
+    if (pendingSheetPush && !$('#overlay').hidden) { pendingSheetPush = false; history.pushState({ tab, depth: navDepth, sheet: 1 }, ''); }
+    return;
+  }
+  if (!$('#overlay').hidden) { closeSheet(true); return; }   // otvoren prozor -> samo ga zatvori
+  const st = e.state || { tab: 'pregled', depth: 0 };
+  navDepth = st.depth || 0;
+  if (user && profile) go(st.tab || 'pregled', true);
+});
 async function changeMonth(d){
   month = new Date(month.getFullYear(), month.getMonth() + d, 1);
   $('#monthLabel').textContent = `${MONTHS[month.getMonth()]} ${month.getFullYear()}`;
@@ -1669,7 +1691,7 @@ function renderMore(){
     <div class="row-btn" onclick="logout()"><span>🚪 Odjava</span></div></div>
     <p class="muted small center">${esc(user.email)} · Financije ${VERSION}</p>`;
 }
-const back = () => `<button class="btn link back" onclick="go('vise')">‹ Natrag</button>`;
+const back = () => `<button class="btn link back" onclick="goBack()">‹ Natrag</button>`;
 
 function editName(){
   openSheet(`<h2>Ime</h2><label>Kako da te aplikacija zove<input id="nName" value="${esc(profile.display_name)}"></label>
@@ -2018,8 +2040,23 @@ async function delTx(){
 }
 
 // ---------------- OSTALO ----------------
-function openSheet(h){ $('#sheet').innerHTML = '<div class="grab"></div>' + h; $('#overlay').hidden = false; }
-function closeSheet(){ if (qr) stopScan(); $('#overlay').hidden = true; $('#sheet').innerHTML = ''; }
+function openSheet(h){
+  const wasOpen = !$('#overlay').hidden;
+  $('#sheet').innerHTML = '<div class="grab"></div>' + h; $('#overlay').hidden = false;
+  if (!wasOpen) {
+    if (ignorePop) pendingSheetPush = true;
+    else history.pushState({ tab, depth: navDepth, sheet: 1 }, '');
+  }
+}
+function closeSheet(fromHistory){
+  if (qr) stopScan();
+  const wasOpen = !$('#overlay').hidden;
+  $('#overlay').hidden = true; $('#sheet').innerHTML = '';
+  if (wasOpen && !fromHistory) {
+    if (pendingSheetPush) pendingSheetPush = false;
+    else if (history.state && history.state.sheet) { ignorePop = true; history.back(); }
+  }
+}
 
 async function exportCsv(){
   const { data, error } = await sb.from('transactions').select('*').eq('user_id', user.id).order('date');
