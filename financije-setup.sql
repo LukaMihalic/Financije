@@ -321,9 +321,9 @@ create policy accounts_partner_select on public.accounts for select to authentic
 drop policy if exists tx_select on public.transactions;
 drop policy if exists tx_insert on public.transactions;
 drop policy if exists tx_update on public.transactions;
-create policy tx_select on public.transactions for select
+create policy tx_select on public.transactions for select to authenticated
   using (user_id = auth.uid()
-    or (user_id = public.my_partner()
+    or (user_id in (select p.partner_id from public.profiles p where p.id = auth.uid())
         and (is_shared or public.is_joint_account(account_id) or public.is_joint_account(to_account_id))));
 create policy tx_insert on public.transactions for insert
   with check (user_id = auth.uid() and public.can_use_account(account_id) and public.can_use_account(to_account_id));
