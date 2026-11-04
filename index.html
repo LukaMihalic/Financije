@@ -164,7 +164,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v11.3';
+const VERSION = 'v11.4';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -1679,6 +1679,22 @@ async function saveBudget(id){
   closeSheet(); await loadCats(); render();
 }
 
+async function showDiag(){
+  openSheet('<h2>🔧 Dijagnostika</h2><p class="muted">Učitavam…</p>');
+  const { data: { session } } = await sb.auth.getSession();
+  const r1 = await sb.from('accounts').select('id,name,shared,archived,user_id');
+  const r2 = await sb.from('profiles').select('id,display_name,partner_id');
+  const who = id => id === user.id ? 'ja' : (partner && id === partner.id ? 'partner' : 'drugi');
+  const rows = (r1.data || []).map(a => `${esc(a.name)} · ${who(a.user_id)} · ${a.shared ? 'zajednički' : 'privatni'}${a.archived ? ' · sakriven' : ''}`).join('<br>');
+  $('#sheet').innerHTML = `<div class="grab"></div><h2>🔧 Dijagnostika</h2>
+    <p class="small">Verzija: <b>${VERSION}</b><br>Ja: ${esc(profile.display_name)} (${user.id.slice(0, 8)})<br>
+    Partner u profilu: ${profile.partner_id ? profile.partner_id.slice(0, 8) : '–'} · učitan: ${partner ? esc(partner.display_name) + ' (' + partner.id.slice(0, 8) + ')' : 'ne'}<br>
+    Prijava: ${session ? 'da' : 'NE'} · token istječe: ${session ? new Date(session.expires_at * 1000).toLocaleString('hr-HR') : '–'}</p>
+    <div class="lbl">Računi koje baza vraća (${(r1.data || []).length})</div><p class="small">${rows || '–'}${r1.error ? '<br>Greška: ' + esc(r1.error.message) : ''}</p>
+    <div class="lbl">Računi u aplikaciji</div><p class="small">${accounts.map(a => esc(a.name) + (a.shared ? ' 👫' : '')).join(', ') || '–'}</p>
+    <div class="lbl">Profili koje vidim</div><p class="small">${(r2.data || []).map(x => esc(x.display_name) + ' (' + x.id.slice(0, 8) + ')').join(', ')}${r2.error ? ' · greška: ' + esc(r2.error.message) : ''}</p>
+    <button class="btn" onclick="closeSheet()">Zatvori</button>`;
+}
 function renderMore(){
   return `<div class="card list">
     <div class="row-btn" onclick="editName()"><span>👤 Ime</span><span class="muted">${esc(profile.display_name)}</span></div>
@@ -1691,6 +1707,7 @@ function renderMore(){
     <div class="row-btn" onclick="go('fav')"><span>⭐ Brzi unosi</span><span class="muted">${favs.length || ''} ›</span></div>
     <div class="row-btn" onclick="openImport()"><span>⬆️ Uvoz izvoda (PBZ, Revolut…)</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="exportCsv()"><span>⬇️ Izvoz u CSV (Excel)</span></div>
+    <div class="row-btn" onclick="showDiag()"><span>🔧 Dijagnostika</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="logout()"><span>🚪 Odjava</span></div></div>
     <p class="muted small center">${esc(user.email)} · Financije ${VERSION}</p>`;
 }
