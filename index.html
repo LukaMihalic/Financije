@@ -164,7 +164,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v11.2';
+const VERSION = 'v11.3';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -289,6 +289,9 @@ async function startApp(){
   await runRecurring();
   await loadMonth();
   render();
+  const akcija = new URLSearchParams(location.search).get('akcija');
+  if (akcija === 'stat') go('stat');
+  else if (akcija === 'novi') openNew();
 }
 
 // ---------------- UČITAVANJE PODATAKA ----------------
@@ -2088,6 +2091,7 @@ async function checkUpdate(){
   } catch (e) {}
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 initTip();
 init();
 checkUpdate();
