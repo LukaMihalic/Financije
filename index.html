@@ -172,7 +172,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v12.2';
+const VERSION = 'v12.3';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -848,6 +848,9 @@ async function aiSave(split){
     : [{ ...base, amount: aiRes.total, category_id: (groups[0] || {}).cat || null, note: aiRes.store || null, items: pack(aiRes.items) }];
   if (rows.some(r => !(r.amount > 0))) return toast('Ukupan iznos mora biti veći od nule');
   let { error } = await sb.from('transactions').insert(rows);
+  if (error && /merchant/i.test(error.message)) {   // nema stupca trgovca (v10) – spremi stavke bez njega
+    ({ error } = await sb.from('transactions').insert(rows.map(({ merchant, ...r }) => r)));
+  }
   if (error && /items|merchant|column|schema/i.test(error.message)) {
     const why = error.message;
     ({ error } = await sb.from('transactions').insert(rows.map(({ items, merchant, ...r }) => r)));
