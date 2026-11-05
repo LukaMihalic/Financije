@@ -126,7 +126,7 @@ svg text{font-family:inherit}
 .filters input[type=search]{margin-top:0}
 .flt-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.flt-row select{flex:1;min-width:120px;margin-top:0;padding:9px;font-size:14px}
 .year-nav{display:flex;align-items:center;justify-content:space-between;padding:6px 12px}.year-nav .btn{width:auto;margin:0}
-.scan-row{display:grid;grid-template-columns:1.4fr 1fr;gap:8px;margin-bottom:4px}.scan-row .btn{margin:0;font-size:14px;padding:11px 6px}
+.scan-row{display:grid;grid-template-columns:1.2fr 1.1fr .8fr;gap:6px;margin-bottom:4px}.scan-row .btn{margin:0;font-size:14px;padding:11px 6px}
 .ai-items{max-height:45vh;overflow:auto;margin-top:6px;border:1px solid var(--line);border-radius:12px;padding:0 10px}
 .ai-it{padding:8px 0;border-bottom:1px solid var(--line)}.ai-it:last-child{border-bottom:0}
 .ai-it select{margin-top:5px;padding:7px;font-size:14px}
@@ -175,7 +175,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v12.4';
+const VERSION = 'v12.5';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -776,19 +776,25 @@ function shrinkImage(f){
     im.src = u;
   });
 }
+function fileB64(f){
+  return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = () => no(new Error('Ne mogu pročitati datoteku')); r.readAsDataURL(f); });
+}
 const catByName = n => myCats('expense').find(c => norm(c.name) === norm(n)) || myCats('income').find(c => norm(c.name) === norm(n));
 async function aiReceipt(input){
   const f = input.files && input.files[0]; if (!f) return;
   syncDraft();
   openSheet('<h2>🧾 Čitam račun…</h2><p class="muted">Claude čita stavke, to traje nekoliko sekundi.</p><div class="spinner"></div>');
   try {
-    const image = await shrinkImage(f);
+    const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+    if (isPdf && f.size > 4.5 * 1024 * 1024) throw new Error('PDF je prevelik (najviše 4,5 MB).');
+    const image = isPdf ? await fileB64(f) : await shrinkImage(f);
     const { data, error } = await sb.functions.invoke('procitaj-racun', {
-      body: { image, media_type: 'image/jpeg', categories: myCats('expense').map(c => c.name) } });
+      body: { image, media_type: isPdf ? 'application/pdf' : 'image/jpeg', categories: myCats('expense').map(c => c.name) } });
     if (error) {
       let msg = error.message || 'Greška';
       try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) {}
       if (/not found|404|Failed to send/i.test(msg)) msg = 'Funkcija „procitaj-racun” još nije postavljena u Supabaseu (ili nema interneta).';
+      if (isPdf && /media|image|source|pdf/i.test(msg)) msg = 'Za PDF račune treba nadograditi funkciju „procitaj-racun” u Supabaseu (novi kod). Poruka: ' + msg;
       throw new Error(msg);
     }
     if (!data || data.is_receipt === false) throw new Error('Na slici nisam prepoznao račun. Probaj oštriju sliku cijelog računa.');
@@ -2100,8 +2106,9 @@ function showTxSheet(){
   openSheet(`<h2>${d.id ? 'Uredi unos' : 'Novi unos'}</h2>
     ${!d.id && favs.length ? `<div class="lbl" style="margin-top:0">⭐ Brzi unos (jedan dodir)</div>${favChips()}` : ''}
     <div class="seg">${kinds.map(([k, l]) => `<button class="${d.kind === k ? 'on' : ''}" onclick="setKind('${k}')">${l}</button>`).join('')}</div>
-    ${!d.id && d.kind === 'expense' ? `<div class="scan-row"><label class="btn scan">🧾 Slikaj račun (stavke)<input type="file" accept="image/*" capture="environment" hidden onchange="aiReceipt(this)"></label>
-      <button class="btn scan" onclick="startScan()">📷 QR kod</button></div>` : ''}
+    ${!d.id && d.kind === 'expense' ? `<div class="scan-row"><label class="btn scan">🧾 Slikaj račun<input type="file" accept="image/*" capture="environment" hidden onchange="aiReceipt(this)"></label>
+      <label class="btn scan">📄 Iz datoteke<input type="file" accept="image/*,application/pdf,.pdf" hidden onchange="aiReceipt(this)"></label>
+      <button class="btn scan" onclick="startScan()">📷 QR</button></div>` : ''}
     <input id="fAmt" class="amount" inputmode="decimal" placeholder="0,00 €" value="${esc(d.amount)}">
     ${d.id ? itemsHtml(d.items) : ''}
     ${d.kind === 'transfer' ? `

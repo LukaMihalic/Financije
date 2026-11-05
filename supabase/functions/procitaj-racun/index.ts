@@ -1,6 +1,6 @@
 // =====================================================================
 //  Financije – Supabase Edge Function "procitaj-racun"
-//  Prima sliku računa iz aplikacije, šalje je Claudeu i vraća trgovinu,
+//  Prima sliku ili PDF računa iz aplikacije, šalje ga Claudeu i vraća trgovinu,
 //  datum, ukupni iznos i stavke s prijedlogom kategorija.
 //  Potrebna tajna: ANTHROPIC_API_KEY (Edge Functions -> Secrets)
 // =====================================================================
@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
 
     // 3) slika i kategorije iz aplikacije
     const { image, media_type, categories } = await req.json();
-    if (!image) return json({ error: "Nema slike." }, 400);
+    if (!image) return json({ error: "Nema slike ni datoteke." }, 400);
+    const isPdf = media_type === "application/pdf";
     const cats = Array.isArray(categories) && categories.length ? categories.slice(0, 60) : null;
 
     const tool = {
@@ -53,7 +54,7 @@ Deno.serve(async (req) => {
         type: "object",
         properties: {
           is_receipt: { type: "boolean", description: "Je li na slici račun." },
-          store: { type: "string", description: "Naziv trgovine ili ugostiteljskog objekta, kratko (npr. 'Konzum')." },
+          store: { type: "string", description: "Naziv trgovine, objekta ili izdavatelja računa, kratko (npr. 'Konzum', 'A1', 'HEP')." },
           date: { type: "string", description: "Datum računa u obliku YYYY-MM-DD, ako se vidi." },
           total: { type: "number", description: "Ukupni iznos za plaćanje u eurima." },
           items: {
@@ -74,12 +75,15 @@ Deno.serve(async (req) => {
       },
     };
     const prompt =
-      "Na slici je račun (najčešće hrvatski fiskalni račun). Pročitaj naziv trgovine, datum, " +
-      "ukupni iznos za plaćanje u EUR i SVE stavke. Nazive stavki napiši razumljivo na hrvatskom " +
+      "Ovo je račun: fiskalni račun iz trgovine ili elektronički račun za usluge (internet, mobitel, struja, plin, voda…). " +
+      "Pročitaj naziv trgovine ili izdavatelja, datum računa (datum izdavanja, ne rok plaćanja), " +
+      "ukupni iznos za plaćanje u EUR i SVE stavke. Kod računa za usluge stavke su usluge i naknade (npr. 'Internet paket', 'Mjesečna naknada'), " +
+      "a ukupni iznos je iznos za plaćanje s PDV-om. Ako račun ima i prijenos duga iz prošlog razdoblja, ukupni iznos neka bude samo iznos ovog računa. " +
+      "Nazive stavki napiši razumljivo na hrvatskom " +
       "(raspiši očite kratice, npr. 'MLIJ.TR.2,8%' → 'Mlijeko trajno 2,8%'). Cijena stavke je ukupna cijena " +
       "te stavke. Popuste i povrat ambalaže upiši kao zasebne stavke s negativnom cijenom. " +
       (cats ? `Svakoj stavki dodijeli najprikladniju kategoriju s popisa: ${cats.join(", ")}. ` : "") +
-      "Ako nešto nije čitljivo, izostavi to umjesto da nagađaš. Ako na slici nije račun, postavi is_receipt na false.";
+      "Ako nešto nije čitljivo, izostavi to umjesto da nagađaš. Ako ovo nije račun, postavi is_receipt na false.";
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -92,7 +96,9 @@ Deno.serve(async (req) => {
         messages: [{
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: media_type || "image/jpeg", data: image } },
+            isPdf
+              ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: image } }
+              : { type: "image", source: { type: "base64", media_type: media_type || "image/jpeg", data: image } },
             { type: "text", text: prompt },
           ],
         }],
