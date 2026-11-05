@@ -134,6 +134,9 @@ svg text{font-family:inherit}
 .ai-saved summary{cursor:pointer;font-size:14px;font-weight:600}.ai-saved .imp-top{padding:5px 0;border-bottom:1px solid var(--line)}
 .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;margin:20px auto;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.tx.own{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:background .15s}
+.tx.pressed{background:var(--line);border-radius:10px}
+.btn.danger-fill{background:#dc2626;color:#fff}
 #tip{position:fixed;display:none;pointer-events:none;background:var(--text);color:var(--bg);padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.35;white-space:pre-line;z-index:30;max-width:240px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
 .auth{margin-top:10vh;text-align:center}.auth label{text-align:left}
 .logo{font-size:52px}.auth h1{margin:4px 0}
@@ -172,7 +175,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v12.3';
+const VERSION = 'v12.4';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -1463,6 +1466,46 @@ function renderStat(){
 }
 
 // oblačić s detaljima (miš ili dodir)
+// ---- dugi pritisak na unos: brisanje / uređivanje
+let lpTimer = null, lpFired = false, lpStart = null;
+const txById = id => txs.find(x => x.id === id) || (fltData ? fltData.rows.find(x => x.id === id) : null);
+function initLongPress(){
+  const app = $('#app');
+  const cancel = () => { clearTimeout(lpTimer); lpTimer = null; };
+  app.addEventListener('pointerdown', e => {
+    const row = e.target.closest('.tx.own[data-id]'); if (!row) return;
+    lpFired = false; lpStart = [e.clientX, e.clientY]; cancel();
+    lpTimer = setTimeout(() => { lpFired = true; row.classList.add('pressed'); if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) {} txMenu(row.dataset.id); setTimeout(() => row.classList.remove('pressed'), 300); }, 550);
+  });
+  app.addEventListener('pointermove', e => { if (lpTimer && lpStart && Math.hypot(e.clientX - lpStart[0], e.clientY - lpStart[1]) > 10) cancel(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => app.addEventListener(ev, cancel));
+  app.addEventListener('contextmenu', e => { if (e.target.closest('.tx.own[data-id]')) e.preventDefault(); });
+  // klik koji slijedi nakon dugog pritiska ne smije otvoriti unos
+  app.addEventListener('click', e => { if (lpFired && e.target.closest('.tx')) { e.stopPropagation(); e.preventDefault(); setTimeout(() => { lpFired = false; }, 0); } }, true);
+}
+function txMenu(id){
+  const t = txById(id); if (!t) return;
+  const c = catById(t.category_id);
+  const what = t.kind === 'transfer' ? `🔁 ${(accById(t.account_id) || {}).name || '?'} → ${(accById(t.to_account_id) || {}).name || '?'}`
+    : t.kind === 'settlement' ? '🤝 Podmirenje' : `${c ? c.icon + ' ' + c.name : '📦 Bez kategorije'}`;
+  const sign = t.kind === 'income' ? '+' : t.kind === 'expense' ? '−' : '';
+  openSheet(`<h2>${esc(what)}</h2>
+    <p><b>${sign}${eur.format(t.amount)}</b> · ${fmtDate(t.date)}${t.note ? ' · ' + esc(t.note) : ''}</p>
+    <button class="btn danger-fill" onclick="deleteTx('${id}')">🗑️ Obriši</button>
+    ${t.kind !== 'settlement' ? `<button class="btn" onclick="closeSheet();openTx('${id}')">✏️ Uredi</button>` : ''}
+    <button class="btn link" onclick="closeSheet()">Odustani</button>`);
+}
+async function deleteTx(id){
+  const t = txById(id); if (!t) return;
+  const { error } = await sb.from('transactions').delete().eq('id', id);
+  if (error) return toast(error.message);
+  closeSheet(); await loadMonth(); render();
+  toastAction('Unos obrisan', 'Poništi', async () => {
+    const { error: e2 } = await sb.from('transactions').insert(t);
+    if (e2) return toast(e2.message);
+    await loadMonth(); render(); toast('Vraćeno');
+  });
+}
 function initTip(){
   const tip = document.createElement('div'); tip.id = 'tip'; document.body.appendChild(tip);
   const show = e => {
@@ -1771,7 +1814,7 @@ function txRowHtml(t){
   const accLbl = !tr && activeAccs().length > 1 && accById(t.account_id) ? accLabel(accById(t.account_id)) : '';
   const tagsL = [(t.tags || []).map(g => '#' + g).join(' '), t.items && t.items.length ? `🧾 ${t.items.slice(0, 3).map(x => x.name).join(', ')}${t.items.length > 3 ? ` +${t.items.length - 3}` : ''}` : ''].filter(Boolean).join(' · ');
   const sub = [t.note && !st ? t.note : '', accLbl, tagsL, !own ? 'platio/la ' + (partner ? partner.display_name : '') : ''].filter(Boolean).join(' · ');
-  return `<div class="tx" ${own ? `onclick="openTx('${t.id}')"` : ''}>
+  return `<div class="tx${own ? ' own' : ''}" ${own ? `data-id="${t.id}" onclick="if(!lpFired)openTx('${t.id}')"` : ''}>
     <span class="ic">${esc(icon)}</span>
     <div class="tx-main"><div>${esc(name)}${t.is_shared && !st ? ' <span class="tag">zajedničko</span>' : ''}</div>${sub ? `<div class="muted small">${esc(sub)}</div>` : ''}</div>
     <b class="${t.kind === 'income' ? 'pos' : t.kind === 'expense' ? 'neg' : ''}">${sign}${eur.format(t.amount)}</b></div>`;
@@ -2248,6 +2291,7 @@ async function checkUpdate(){
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 initTip();
+initLongPress();
 init();
 checkUpdate();
 </script>
