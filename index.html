@@ -172,7 +172,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v12';
+const VERSION = 'v12.2';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -849,8 +849,14 @@ async function aiSave(split){
   if (rows.some(r => !(r.amount > 0))) return toast('Ukupan iznos mora biti veći od nule');
   let { error } = await sb.from('transactions').insert(rows);
   if (error && /items|merchant|column|schema/i.test(error.message)) {
-    toast('Spremljeno bez popisa stavki – pokreni supabase-v12-racuni-ai.sql u Supabaseu');
+    const why = error.message;
     ({ error } = await sb.from('transactions').insert(rows.map(({ items, merchant, ...r }) => r)));
+    if (!error) {
+      aiRes = null; closeSheet(); await loadMonth(); render();
+      return openSheet(`<h2>⚠️ Spremljeno bez popisa stavki</h2><p>Trošak je spremljen, ali baza nije prihvatila stavke. Poruka iz baze:</p>
+        <p class="small" style="background:var(--bg);padding:10px;border-radius:10px;word-break:break-word"><b>${esc(why)}</b></p>
+        <p class="muted small">Pošalji ovu poruku Claudeu da popravi.</p><button class="btn" onclick="closeSheet()">Zatvori</button>`);
+    }
   }
   if (error) return toast(error.message);
   try { if (base.account_id) localStorage.setItem('lastAcc', base.account_id); } catch (e) {}
@@ -862,7 +868,7 @@ async function aiSave(split){
 }
 function itemsHtml(items){
   if (!items || !items.length) return '';
-  return `<details class="ai-saved"><summary>🧾 Stavke s računa (${items.length})</summary>
+  return `<details class="ai-saved" open><summary>🧾 Stavke s računa (${items.length})</summary>
     ${items.map(x => `<div class="imp-top small"><span class="nm">${esc(x.name)}${x.qty && x.qty !== 1 ? ' ×' + String(x.qty).replace('.', ',') : ''}</span><span>${eur.format(+x.price || 0)}</span></div>`).join('')}</details>`;
 }
 
@@ -1760,7 +1766,7 @@ function txRowHtml(t){
   const name = st ? 'Podmirenje' : tr ? `${an(t.account_id)} → ${an(t.to_account_id)}` : (c ? c.name : 'Bez kategorije');
   const sign = t.kind === 'income' ? '+' : t.kind === 'expense' ? '−' : '';
   const accLbl = !tr && activeAccs().length > 1 && accById(t.account_id) ? accLabel(accById(t.account_id)) : '';
-  const tagsL = [(t.tags || []).map(g => '#' + g).join(' '), t.items && t.items.length ? `🧾 ${stavki(t.items.length)}` : ''].filter(Boolean).join(' · ');
+  const tagsL = [(t.tags || []).map(g => '#' + g).join(' '), t.items && t.items.length ? `🧾 ${t.items.slice(0, 3).map(x => x.name).join(', ')}${t.items.length > 3 ? ` +${t.items.length - 3}` : ''}` : ''].filter(Boolean).join(' · ');
   const sub = [t.note && !st ? t.note : '', accLbl, tagsL, !own ? 'platio/la ' + (partner ? partner.display_name : '') : ''].filter(Boolean).join(' · ');
   return `<div class="tx" ${own ? `onclick="openTx('${t.id}')"` : ''}>
     <span class="ic">${esc(icon)}</span>
