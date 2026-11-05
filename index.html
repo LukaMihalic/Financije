@@ -164,7 +164,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v11.4';
+const VERSION = 'v11.5';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -1596,7 +1596,7 @@ function renderPregled(){
       <div class="card stat"><span class="muted small">Prihodi</span><b class="pos">${eur.format(inc)}</b></div>
       <div class="card stat"><span class="muted small">Troškovi</span><b class="neg">${eur.format(exp)}</b></div>
     </div>
-    <div class="card stat big"><span class="muted small">Saldo mjeseca</span><b class="${sal >= 0 ? 'pos' : 'neg'}">${eur.format(sal)}</b></div>`;
+    <div class="card stat big click" onclick="openMonthTx()"><span class="muted small">Saldo mjeseca <span style="float:right">Unosi ›</span></span><b class="${sal >= 0 ? 'pos' : 'neg'}">${eur.format(sal)}</b></div>`;
   const over = myCats('expense').filter(c => c.budget > 0 && (by[c.id] || 0) > +c.budget);
   if (over.length) h += `<div class="card warn">⚠️ Prekoračen budžet: ${over.map(c => esc(c.icon + ' ' + c.name)).join(', ')}</div>`;
   h += renderChartCard(rows, max);
@@ -1605,6 +1605,8 @@ function renderPregled(){
   return h;
 }
 
+// saldo mjeseca -> popis unosa za taj mjesec (bez filtera)
+function openMonthTx(){ flt = { q: '', scope: 'mjesec', cat: '', acc: '', tag: '' }; go('tx'); }
 function renderShareCard(){
   const b = balance(), pn = esc(partner.display_name);
   let txt, btn = '';
