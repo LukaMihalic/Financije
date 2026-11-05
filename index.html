@@ -164,7 +164,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v11.5';
+const VERSION = 'v11.6';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -614,7 +614,7 @@ function toastAction(msg, label, fn){
 // =====================================================================
 //  PRETRAGA I FILTERI + OZNAKE
 // =====================================================================
-let flt = { q: '', scope: 'mjesec', cat: '', acc: '', tag: '' };
+let flt = { q: '', scope: 'mjesec', cat: '', acc: '', tag: '', kind: '' };
 let fltData = null;       // { key, rows } za opseg godina/sve
 let allTags = [];         // [naziv, broj]
 async function loadTags(){
@@ -624,7 +624,7 @@ async function loadTags(){
   for (const t of data || []) for (const g of t.tags || []) c[g] = (c[g] || 0) + 1;
   allTags = Object.entries(c).sort((a, b) => b[1] - a[1]);
 }
-const fltActive = () => !!(flt.q || flt.cat || flt.acc || flt.tag);
+const fltActive = () => !!(flt.q || flt.cat || flt.acc || flt.tag || flt.kind);
 function fltKey(){ return flt.scope === 'godina' ? 'g' + month.getFullYear() : flt.scope === 'sve' ? 'sve' : null; }
 async function ensureFltData(){
   const key = fltKey();
@@ -639,9 +639,11 @@ function setFlt(k, v){
   flt[k] = v;
   if (k === 'scope') { ensureFltData().then(() => render()); return render(); }
   if (k === 'q') return renderTxList();
+  if (k === 'kind' && flt.cat && v && catById(flt.cat) && catById(flt.cat).kind !== v) flt.cat = '';
   render();
 }
 function txMatches(t){
+  if (flt.kind && t.kind !== flt.kind) return false;
   if (flt.cat && (t.category_id || 'none') !== flt.cat) return false;
   if (flt.acc && t.account_id !== flt.acc && t.to_account_id !== flt.acc) return false;
   if (flt.tag && !(t.tags || []).includes(flt.tag)) return false;
@@ -689,12 +691,14 @@ function renderTx(){
     <input id="txQ" type="search" placeholder="🔎 Traži (npr. bolt, konzum, kava)" value="${esc(flt.q)}" oninput="setFlt('q',this.value)">
     <div class="seg seg-sm" style="margin:10px 0 0">${[['mjesec', MONTHS[month.getMonth()]], ['godina', String(month.getFullYear())], ['sve', 'Sve']].map(([k, l]) =>
       `<button class="${flt.scope === k ? 'on' : ''}" onclick="setFlt('scope','${k}')">${l}</button>`).join('')}</div>
+    <div class="seg seg-sm kind-seg" style="margin:8px 0 0">${[['', 'Sve'], ['expense', 'Troškovi'], ['income', 'Prihodi']].concat(activeAccs().length > 1 ? [['transfer', 'Prijenosi']] : []).map(([k, l]) =>
+      `<button class="${flt.kind === k ? 'on' : ''}" onclick="setFlt('kind','${k}')">${l}</button>`).join('')}</div>
     <div class="flt-row">
-      ${sel('cat', 'Sve kategorije', [...myCats('expense'), ...myCats('income')].map(c => [c.id, c.icon + ' ' + c.name]).concat([['none', '📦 Bez kategorije']]))}
+      ${flt.kind === 'transfer' ? '' : sel('cat', 'Sve kategorije', (flt.kind ? myCats(flt.kind) : [...myCats('expense'), ...myCats('income')]).map(c => [c.id, c.icon + ' ' + c.name]).concat([['none', '📦 Bez kategorije']]))}
       ${activeAccs().length > 1 ? sel('acc', 'Svi računi', activeAccs().map(a => [a.id, a.icon + ' ' + a.name])) : ''}
       ${allTags.length ? sel('tag', 'Sve oznake', allTags.map(([t]) => [t, '#' + t])) : ''}
     </div>
-    ${fltActive() ? `<button class="btn link small" onclick="flt={q:'',scope:flt.scope,cat:'',acc:'',tag:''};render()">✕ Očisti filtere</button>` : ''}
+    ${fltActive() ? `<button class="btn link small" onclick="flt={q:'',scope:flt.scope,cat:'',acc:'',tag:'',kind:''};render()">✕ Očisti filtere</button>` : ''}
     <button class="btn small" style="margin-top:8px" onclick="openImport()">⬆️ Uvoz izvoda</button></div>`;
   if (partner) h += `<div class="seg">${[['sve','Sve'],['moje','Moje'],['zaj','Zajedničko']]
     .map(([k, l]) => `<button class="${txFilter === k ? 'on' : ''}" onclick="txFilter='${k}';render()">${l}</button>`).join('')}</div>`;
@@ -736,7 +740,7 @@ function renderTags(){
   let h = back() + `<div class="card list"><h3>🏷️ Oznake</h3>
     <p class="muted small">Oznakom povežeš unose iz različitih kategorija – npr. #ljubljana na smještaju, hrani i prijevozu – pa vidiš koliko te nešto stajalo ukupno. Oznaku dodaješ u prozoru za unos.</p>`;
   if (!tagStats.length) h += '<p class="muted">Još nema oznaka.</p>';
-  for (const x of tagStats) h += `<div class="tx" onclick="flt={q:'',scope:'sve',cat:'',acc:'',tag:'${esc(x.tag)}'};go('tx')">
+  for (const x of tagStats) h += `<div class="tx" onclick="flt={q:'',scope:'sve',cat:'',acc:'',tag:'${esc(x.tag)}',kind:''};go('tx')">
       <span class="ic">🏷️</span><div class="tx-main"><div>#${esc(x.tag)}</div><div class="muted small">${x.n} unosa · ${fmtDate(x.from)}${x.to !== x.from ? ' – ' + fmtDate(x.to) : ''}${x.inc ? ' · prihodi ' + eur.format(x.inc) : ''}</div></div>
       <b class="neg">${x.exp ? eur.format(x.exp) : ''}</b></div>`;
   return h + '</div>';
@@ -1593,8 +1597,8 @@ function renderPregled(){
   h += renderAccountsCard();
   if (favs.length) h += `<div class="card"><div class="muted small" style="margin-bottom:8px">⭐ Brzi unos</div>${favChips()}</div>`;
   h += `<div class="summary">
-      <div class="card stat"><span class="muted small">Prihodi</span><b class="pos">${eur.format(inc)}</b></div>
-      <div class="card stat"><span class="muted small">Troškovi</span><b class="neg">${eur.format(exp)}</b></div>
+      <div class="card stat click" onclick="openMonthTx('income')"><span class="muted small">Prihodi ›</span><b class="pos">${eur.format(inc)}</b></div>
+      <div class="card stat click" onclick="openMonthTx('expense')"><span class="muted small">Troškovi ›</span><b class="neg">${eur.format(exp)}</b></div>
     </div>
     <div class="card stat big click" onclick="openMonthTx()"><span class="muted small">Saldo mjeseca <span style="float:right">Unosi ›</span></span><b class="${sal >= 0 ? 'pos' : 'neg'}">${eur.format(sal)}</b></div>`;
   const over = myCats('expense').filter(c => c.budget > 0 && (by[c.id] || 0) > +c.budget);
@@ -1606,7 +1610,7 @@ function renderPregled(){
 }
 
 // saldo mjeseca -> popis unosa za taj mjesec (bez filtera)
-function openMonthTx(){ flt = { q: '', scope: 'mjesec', cat: '', acc: '', tag: '' }; go('tx'); }
+function openMonthTx(kind){ flt = { q: '', scope: 'mjesec', cat: '', acc: '', tag: '', kind: kind || '' }; go('tx'); }
 function renderShareCard(){
   const b = balance(), pn = esc(partner.display_name);
   let txt, btn = '';
