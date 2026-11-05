@@ -21,11 +21,27 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
-#topbar{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;align-items:center;justify-content:space-between;padding:calc(8px + env(safe-area-inset-top)) 16px 8px;max-width:640px;margin:0 auto}
+#topbar{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;align-items:center;gap:4px;padding:calc(8px + env(safe-area-inset-top)) 8px 8px;max-width:656px;margin:0 auto}
 #topbar button{background:none;border:0;color:var(--acc);font-size:30px;width:44px;height:44px;cursor:pointer}
 #topbar button.off{visibility:hidden}
-#monthLabel{font-weight:700;font-size:18px}
-#app{max-width:640px;margin:0 auto;padding:0 16px calc(110px + env(safe-area-inset-bottom))}
+#monthLabel{font-weight:600;font-size:15px;white-space:nowrap}
+#menuBtn{color:var(--text)!important;display:flex;align-items:center;justify-content:center}
+#pageTitle{flex:1;min-width:0;font-weight:700;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#monthNav{display:flex;align-items:center}#monthNav[hidden]{display:none!important}
+#topbar #monthNav button{width:36px;font-size:26px}
+#nav{display:none!important}
+#drawerBg{position:fixed;inset:0;background:rgba(10,20,18,.45);z-index:14;opacity:0;pointer-events:none;transition:opacity .2s}
+#drawerBg.open{opacity:1;pointer-events:auto}
+#drawer{position:fixed;left:0;top:0;bottom:0;width:min(300px,84vw);background:var(--card);z-index:15;transform:translateX(-105%);transition:transform .22s ease;box-shadow:4px 0 24px rgba(0,0,0,.18);overflow-y:auto;box-sizing:border-box;padding:calc(20px + env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom))}
+#drawer.open{transform:none}
+.dr-head{display:flex;align-items:center;gap:12px;padding:0 8px 16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.dr-av{width:44px;height:44px;border-radius:22px;background:var(--acc);color:var(--onacc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex:none}
+.dr-head b{display:block;font-size:16px}.dr-head span{font-size:13px;color:var(--muted)}
+.dr-it{display:flex;align-items:center;gap:14px;width:100%;min-height:48px;padding:0 12px;border:0;border-radius:12px;background:none;color:var(--text);font:inherit;font-size:15px;cursor:pointer;text-align:left}
+.dr-it svg{flex:none;color:var(--muted)}.dr-it .dr-x{margin-left:auto;font-size:13px;color:var(--muted)}
+.dr-it.on{background:var(--acc2);color:var(--acc);font-weight:700}.dr-it.on svg{color:var(--acc)}
+.dr-sep{border-top:1px solid var(--line);margin:8px 4px}
+#app{max-width:640px;margin:0 auto;padding:0 16px calc(100px + env(safe-area-inset-bottom))}
 .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .card h3{margin:0 0 10px;font-size:16px}
 .card p{margin:6px 0}
@@ -72,7 +88,7 @@ label.switch input{width:22px;height:22px;margin:0;flex:none}
 #nav button span{font-size:22px}
 #nav button.on{color:var(--acc);font-weight:600}
 #nav .gap{width:66px}
-#fab{position:fixed;right:max(16px,calc(50% - 304px));bottom:calc(74px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;border:0;background:var(--acc);color:var(--onacc);font-size:34px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:7;cursor:pointer}
+#fab{position:fixed;right:max(16px,calc(50% - 304px));bottom:calc(24px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;border:0;background:var(--acc);color:var(--onacc);font-size:34px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:7;cursor:pointer}
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10;display:flex;align-items:flex-end;justify-content:center}
 #sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom))}
 .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 10px}
@@ -150,9 +166,13 @@ label.btn{text-align:center;font-size:16px}
 </head>
 <body>
 <div id="topbar" hidden>
-  <button id="prevM" onclick="changeMonth(-1)" aria-label="Prethodni mjesec">‹</button>
-  <div id="monthLabel"></div>
-  <button id="nextM" onclick="changeMonth(1)" aria-label="Sljedeći mjesec">›</button>
+  <button id="menuBtn" onclick="openDrawer()" aria-label="Izbornik"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"></path></svg></button>
+  <div id="pageTitle"></div>
+  <div id="monthNav">
+    <button id="prevM" onclick="changeMonth(-1)" aria-label="Prethodni mjesec">‹</button>
+    <div id="monthLabel"></div>
+    <button id="nextM" onclick="changeMonth(1)" aria-label="Sljedeći mjesec">›</button>
+  </div>
 </div>
 <div id="app"><p class="center muted">Učitavam…</p></div>
 <nav id="nav" hidden>
@@ -165,6 +185,8 @@ label.btn{text-align:center;font-size:16px}
 <button id="fab" hidden onclick="openNew()" aria-label="Novi unos">+</button>
 <div id="overlay" hidden onclick="if(event.target===this)closeSheet()"><div id="sheet"></div></div>
 <div id="toast"></div>
+<div id="drawerBg" onclick="closeDrawer()"></div>
+<nav id="drawer" aria-label="Glavni izbornik"></nav>
 
 <script>
 // =====================================================================
@@ -175,7 +197,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v12.5';
+const VERSION = 'v13';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -1745,6 +1767,7 @@ window.addEventListener('popstate', e => {
     if (pendingSheetPush && !$('#overlay').hidden) { pendingSheetPush = false; history.pushState({ tab, depth: navDepth, sheet: 1 }, ''); }
     return;
   }
+  if (drawerOpen) { closeDrawer(true); return; }             // otvoren izbornik -> zatvori ga
   if (!$('#overlay').hidden) { closeSheet(true); return; }   // otvoren prozor -> samo ga zatvori
   const st = e.state || { tab: 'pregled', depth: 0 };
   navDepth = st.depth || 0;
@@ -1755,13 +1778,73 @@ async function changeMonth(d){
   $('#monthLabel').textContent = `${MONTHS[month.getMonth()]} ${month.getFullYear()}`;
   await loadMonth(); render();
 }
+// =====================================================================
+//  BOČNI IZBORNIK
+// =====================================================================
+const PAGE_TITLES = { pregled: 'Pregled', stat: 'Statistika', tx: 'Unosi', budzet: 'Budžet', vise: 'Postavke i ostalo', kat: 'Kategorije',
+  rec: 'Ponavljajući unosi', partner: 'Partner', racuni: 'Računi i gotovina', import: 'Uvoz izvoda', fav: 'Brzi unosi', goals: 'Ciljevi štednje', tags: 'Oznake' };
+const ICO = {
+  pregled: '<path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path>',
+  tx: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path>',
+  stat: '<path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path>',
+  budzet: '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle>',
+  racuni: '<rect x="2" y="6" width="20" height="14" rx="2"></rect><path d="M2 10h20M16 15h2"></path>',
+  goals: '<path d="M5 21V4h12l-2 4 2 4H5"></path>',
+  rec: '<path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path>',
+  fav: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"></path>',
+  tags: '<path d="M20 12l-8 8-9-9V3h8z"></path><circle cx="7.5" cy="7.5" r="1.2"></circle>',
+  kat: '<rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect>',
+  import: '<path d="M12 15V3"></path><path d="M7 8l5-5 5 5"></path><path d="M5 21h14"></path>',
+  partner: '<circle cx="9" cy="8" r="3"></circle><path d="M3 20c0-3 3-5 6-5s6 2 6 5"></path><path d="M16 5a3 3 0 0 1 0 6M21 20c0-2.5-1.8-4.4-4-4.9"></path>',
+  vise: '<circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path>',
+};
+let drawerOpen = false;
+function renderDrawer(){
+  const own = activeAccs().filter(a => !isJoint(a)).reduce((s, a) => s + (accBals[a.id] || 0), 0);
+  const it = (t, extra) => `<button class="dr-it ${tab === t ? 'on' : ''}" onclick="drawerGo('${t}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[t]}</svg>${PAGE_TITLES[t]}${extra ? `<span class="dr-x">${esc(extra)}</span>` : ''}</button>`;
+  const name = profile ? profile.display_name : '';
+  $('#drawer').innerHTML = `<div class="dr-head"><span class="dr-av">${esc((name || '?').trim()[0].toUpperCase())}</span>
+      <div><b>${esc(name)}</b><span>${accounts.length ? eur.format(own) + ' na računima' : ''}</span></div></div>
+    ${it('pregled')}${it('tx')}${it('stat')}${it('budzet')}${it('racuni')}${it('goals', goals.filter(g => !g.done).length || '')}
+    ${it('rec')}${it('fav')}${it('tags')}${it('kat')}${it('import')}
+    <div class="dr-sep"></div>
+    ${it('partner', partner ? partner.display_name : '')}${it('vise')}`;
+}
+function openDrawer(){
+  if (drawerOpen || !user) return;
+  renderDrawer(); drawerOpen = true;
+  $('#drawer').classList.add('open'); $('#drawerBg').classList.add('open');
+  if (ignorePop) pendingSheetPush = false;
+  history.pushState({ tab, depth: navDepth, drawer: 1 }, '');
+}
+function closeDrawer(fromHistory){
+  if (!drawerOpen) return;
+  drawerOpen = false;
+  $('#drawer').classList.remove('open'); $('#drawerBg').classList.remove('open');
+  if (!fromHistory && history.state && history.state.drawer) { ignorePop = true; history.back(); }
+}
+function drawerGo(t){ closeDrawer(); if (t === 'import') return openImport(); go(t); }
+// povlačenje s lijevog ruba otvara izbornik, povlačenje ulijevo ga zatvara
+(function(){
+  let sx = null, sy = null, onDrawer = false;
+  document.addEventListener('touchstart', e => {
+    const t = e.touches[0]; onDrawer = !!(e.target && e.target.closest && e.target.closest('#drawer'));
+    sx = (t.clientX < 22 || (drawerOpen && onDrawer)) ? t.clientX : null; sy = t.clientY;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (sx === null) return;
+    const t = e.touches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy);
+    if (dy > 40) { sx = null; return; }
+    if (!drawerOpen && dx > 50 && $('#overlay').hidden) { sx = null; openDrawer(); }
+    else if (drawerOpen && dx < -50) { sx = null; closeDrawer(); }
+  }, { passive: true });
+})();
 function render(){
   const monthTab = ['pregled', 'tx', 'budzet', 'stat'].includes(tab);
-  $('#prevM').classList.toggle('off', !monthTab);
-  $('#nextM').classList.toggle('off', !monthTab);
-  $('#monthLabel').textContent = monthTab ? `${MONTHS[month.getMonth()]} ${month.getFullYear()}` : 'Više';
-  const navTab = ['kat', 'rec', 'partner', 'racuni', 'import', 'fav', 'goals', 'tags'].includes(tab) ? 'vise' : tab;
-  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navTab));
+  $('#monthNav').hidden = !monthTab;
+  $('#monthLabel').textContent = `${MONTHS[month.getMonth()]} ${month.getFullYear()}`;
+  $('#pageTitle').textContent = PAGE_TITLES[tab] || '';
+  if (drawerOpen) renderDrawer();
   const views = { pregled: renderPregled, stat: renderStat, tx: renderTx, budzet: renderBudget, vise: renderMore, kat: renderKat, rec: renderRec, partner: renderPartner, racuni: renderRacuni, import: renderImport, fav: renderFavs, tags: renderTags, goals: renderGoals };
   $('#app').innerHTML = views[tab]();
 }
@@ -2282,7 +2365,7 @@ async function exportCsv(){
   a.href = URL.createObjectURL(blob); a.download = `financije-${iso(new Date())}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
 }
-async function logout(){ await sb.auth.signOut(); user = null; profile = null; partner = null; showAuth(); }
+async function logout(){ closeDrawer(); await sb.auth.signOut(); user = null; profile = null; partner = null; showAuth(); }
 
 // provjera nove verzije: ako je na GitHubu novija, osvježi aplikaciju
 async function checkUpdate(){
