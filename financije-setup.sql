@@ -1,5 +1,5 @@
 -- =====================================================================
---  FINANCIJE – postavljanje baze u Supabaseu  (verzija 11)
+--  FINANCIJE – postavljanje baze u Supabaseu  (verzija 12)
 --  Pokreni CIJELU skriptu u: Supabase -> SQL Editor -> New query -> Run
 --  Sigurno ju je pokrenuti više puta – ništa se ne briše i ne duplicira.
 --  Usput napravi profil i kategorije za već registrirane korisnike.
@@ -330,6 +330,22 @@ create policy tx_insert on public.transactions for insert
 create policy tx_update on public.transactions for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid() and public.can_use_account(account_id) and public.can_use_account(to_account_id));
+
+-- ---------- v12: stavke s računa (Claude) ----------
+
+-- stavke pročitane s računa: [{ name, qty, price, category }]
+alter table public.transactions add column if not exists items jsonb;
+
+-- evidencija korištenja (za dnevno ograničenje u funkciji procitaj-racun)
+create table if not exists public.ai_usage (
+  id         bigint generated always as identity primary key,
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.ai_usage enable row level security;
+drop policy if exists ai_usage_all on public.ai_usage;
+create policy ai_usage_all on public.ai_usage for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ---------- PROFILI ZA VEĆ REGISTRIRANE KORISNIKE ----------
 select public.seed_user(u.id, u.email, u.raw_user_meta_data->>'display_name')
