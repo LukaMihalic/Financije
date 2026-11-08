@@ -153,6 +153,8 @@ svg text{font-family:inherit}
 .tx.own{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:background .15s}
 .tx.pressed{background:var(--line);border-radius:10px}
 .btn.danger-fill{background:#dc2626;color:#fff}
+.kind-pills{display:flex;gap:6px;margin:10px 0 2px}
+.net-row{grid-template-columns:1fr 70px 70px 78px}
 #tip{position:fixed;display:none;pointer-events:none;background:var(--text);color:var(--bg);padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.35;white-space:pre-line;z-index:30;max-width:240px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
 .auth{margin-top:10vh;text-align:center}.auth label{text-align:left}
 .logo{font-size:52px}.auth h1{margin:4px 0}
@@ -197,7 +199,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v13.1';
+const VERSION = 'v13.2';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -389,6 +391,9 @@ function needHist(){
   return true;
 }
 
+let chartKind = 'expense';
+try { chartKind = localStorage.getItem('chartKind') === 'income' ? 'income' : 'expense'; } catch (e) {}
+function setChartKind(k){ chartKind = k; try { localStorage.setItem('chartKind', k); } catch (e) {} render(); }
 function renderChartCard(rows, max){
   const seg = `<div class="seg seg-sm">${CHART_MODES.map(([k, l]) =>
     `<button class="${chartMode === k ? 'on' : ''}" onclick="setChart('${k}')">${l}</button>`).join('')}</div>`;
@@ -397,23 +402,27 @@ function renderChartCard(rows, max){
   else if (chartMode === 'trend') body = needHist() ? '<p class="muted">Učitavam…</p>' : chartTrend();
   else if (chartMode === 'tok') body = needHist() ? '<p class="muted">Učitavam…</p>' : chartFlow();
   else body = chartBars(rows, max);
-  return `<div class="card">${seg}${body}</div>`;
+  const kindSeg = (chartMode === 'trake' || chartMode === 'krug') ? `<div class="kind-pills">${[['expense', 'Troškovi'], ['income', 'Prihodi']].map(([k, l]) =>
+    `<button class="chip sm ${chartKind === k ? 'on' : ''}" onclick="setChartKind('${k}')">${l}</button>`).join('')}</div>` : '';
+  return `<div class="card">${seg}${kindSeg}${body}</div>`;
 }
 
 function chartBars(rows, max){
-  let h = '<h3>Troškovi po kategorijama</h3>';
-  if (!rows.length) return h + '<p class="muted">Još nema troškova u ovom mjesecu. Dodaj prvi gumbom +.</p>';
+  const inc = chartKind === 'income';
+  let h = `<h3>${inc ? 'Prihodi' : 'Troškovi'} po kategorijama</h3>`;
+  if (!rows.length) return h + `<p class="muted">Još nema ${inc ? 'prihoda' : 'troškova'} u ovom mjesecu.</p>`;
   for (const [id, v] of rows) {
     const c = catById(id);
     h += `<div class="bar-row click" onclick="catTrend('${id}')"><div class="bar-label"><span>${c ? esc(c.icon + ' ' + c.name) : '📦 Bez kategorije'}</span><span>${eur.format(v)}</span></div>
-      <div class="bar"><i style="width:${(v / max * 100).toFixed(1)}%"></i></div></div>`;
+      <div class="bar"><i style="width:${(v / max * 100).toFixed(1)}%;${inc ? 'background:var(--pos)' : ''}"></i></div></div>`;
   }
   return h + '<p class="muted small">Dodirni kategoriju za njen trend kroz mjesece.</p>';
 }
 
 function chartDonut(rows){
-  let h = '<h3>Udio kategorija u troškovima</h3>';
-  if (!rows.length) return h + '<p class="muted">Još nema troškova u ovom mjesecu.</p>';
+  const inc = chartKind === 'income';
+  let h = `<h3>Udio kategorija u ${inc ? 'prihodima' : 'troškovima'}</h3>`;
+  if (!rows.length) return h + `<p class="muted">Još nema ${inc ? 'prihoda' : 'troškova'} u ovom mjesecu.</p>`;
   let segs = rows.slice(0, 7).map(([id, v], i) => ({ id, v, col: `var(--s${i + 1})` }));
   if (rows.length > 7) segs.push({ id: null, v: rows.slice(7).reduce((s, r) => s + r[1], 0), col: 'var(--sx)', other: rows.length - 7 });
   const tot = segs.reduce((s, x) => s + x.v, 0);
@@ -435,7 +444,7 @@ function chartDonut(rows){
     a = b;
   }
   svg += `<text x="${cx}" y="${cx - 2}" text-anchor="middle" class="t-big">${esc(eur.format(tot))}</text>
-    <text x="${cx}" y="${cx + 18}" text-anchor="middle" class="t-ax">potrošeno</text>`;
+    <text x="${cx}" y="${cx + 18}" text-anchor="middle" class="t-ax">${inc ? 'zarađeno' : 'potrošeno'}</text>`;
   h += `<div class="center"><svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" role="img" aria-label="Udio kategorija u troškovima">${svg}</svg></div>`;
   h += '<div class="legend">' + segs.map(s => `<div class="lg-row ${s.id ? 'click' : ''}" ${s.id ? `onclick="catTrend('${s.id}')"` : ''}>
     <i style="background:${s.col}"></i><span class="lg-name">${esc(name(s))}</span><span class="muted small">${pct(s.v)}</span><b>${eur.format(s.v)}</b></div>`).join('') + '</div>';
@@ -527,7 +536,8 @@ async function catTrend(id){
   openSheet('<h2>Učitavam…</h2>');
   await loadHist();
   const ms = lastMonths(6);
-  const data = ms.map(d => ({ d, v: hist.rows.filter(t => t.kind === 'expense' && (id === 'none' ? !t.category_id : t.category_id === id) && t.date.startsWith(ymOf(d))).reduce((s, t) => s + +t.amount, 0) }));
+  const kd = c ? c.kind : (chartKind || 'expense');
+  const data = ms.map(d => ({ d, v: hist.rows.filter(t => t.kind === kd && (id === 'none' ? !t.category_id : t.category_id === id) && t.date.startsWith(ymOf(d))).reduce((s, t) => s + +t.amount, 0) }));
   const W = Math.min(chartW(), 560), H = 160, top = 18, left = 38, bottom = 24;
   const budget = c && +c.budget > 0 ? +c.budget : 0;
   const avg = data.reduce((s, x) => s + x.v, 0) / data.length;
@@ -536,14 +546,14 @@ async function catTrend(id){
   let svg = axisY(maxV, W, H, top, left);
   data.forEach((x, i) => {
     const gx = left + i * gw + gw / 2, bh = x.v / maxV * H;
-    svg += `<path d="${barPath(gx - bw / 2, top + H - bh, bw, bh)}" fill="var(--s1)"/>
+    svg += `<path d="${barPath(gx - bw / 2, top + H - bh, bw, bh)}" fill="${kd === 'income' ? 'var(--s3)' : 'var(--s1)'}"/>
       ${x.v ? `<text x="${gx}" y="${top + H - bh - 5}" text-anchor="middle" class="t-val">${short(x.v)}</text>` : ''}
       <text x="${gx}" y="${top + H + 17}" text-anchor="middle" class="t-ax${x.d.getTime() === month.getTime() ? ' t-cur' : ''}">${MSHORT[x.d.getMonth()]}</text>
       <rect x="${left + i * gw}" y="${top}" width="${gw}" height="${H}" class="hit" data-tip="${esc(`${MONTHS[x.d.getMonth()]} ${x.d.getFullYear()}\n${eur.format(x.v)}`)}"/>`;
   });
   if (budget) svg += `<line x1="${left}" x2="${W}" y1="${top + H - budget / maxV * H}" y2="${top + H - budget / maxV * H}" class="ref"/>`;
   openSheet(`<h2>${c ? esc(c.icon + ' ' + c.name) : 'Bez kategorije'}</h2>
-    <p class="muted small">Troškovi zadnjih 6 mjeseci${budget ? ' · isprekidana crta = budžet ' + eur.format(budget) : ''}</p>
+    <p class="muted small">${kd === 'income' ? 'Prihodi' : 'Troškovi'} zadnjih 6 mjeseci${budget ? ' · isprekidana crta = budžet ' + eur.format(budget) : ''}</p>
     <svg width="100%" viewBox="0 0 ${W} ${H + top + bottom}" role="img" aria-label="Troškovi kategorije po mjesecima">${svg}</svg>
     <p>Prosjek: <b>${eur.format(avg)}</b> mjesečno</p>
     <button class="btn" onclick="closeSheet()">Zatvori</button>`);
@@ -1405,8 +1415,57 @@ const statSeg = () => `<div class="seg">${[[3, '3 mj.'], [6, '6 mj.'], [12, '12 
 
 // Statistika: na vrhu graf odabranog mjeseca (trake/krug/trend/tijek), ispod prosjeci za razdoblje
 function renderStat(){
-  const by = spentByCat(), rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
-  return renderChartCard(rows, rows.length ? rows[0][1] : 1) + renderStatPeriod();
+  const by = spentByCat(chartKind), rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  return renderChartCard(rows, rows.length ? rows[0][1] : 1) + renderNetCard() + renderStatPeriod();
+}
+// parovi kategorija istog naziva u prihodima i troškovima (npr. Prijevoz: BlaBlaCar − benzin i cestarina)
+function netPairs(){
+  const out = [];
+  for (const e of myCats('expense')) {
+    const i = myCats('income').find(c => norm(c.name).trim() === norm(e.name).trim());
+    if (i) out.push({ name: e.name, icon: e.icon, exp: e.id, inc: i.id });
+  }
+  return out;
+}
+function renderNetCard(){
+  const pairs = netPairs();
+  if (!pairs.length) return `<div class="card small muted">↔️ <b>Neto po kategorijama</b>: napravi kategoriju prihoda s istim nazivom kao trošak (npr. <b>Prijevoz</b>) i ovdje ćeš vidjeti razliku – npr. BlaBlaCar uplate minus benzin i cestarina.</div>`;
+  const ex = spentByCat('expense'), inc = spentByCat('income');
+  let h = `<div class="card"><h3>↔️ Neto po kategorijama · ${MONTHS[month.getMonth()]}</h3>
+    <div class="st-row st-head net-row"><span>Kategorija</span><span>Prihod</span><span>Trošak</span><span>Neto</span></div>`;
+  for (const p of pairs) {
+    const a = inc[p.inc] || 0, b = ex[p.exp] || 0, n = Math.round((a - b) * 100) / 100;
+    h += `<div class="st-row net-row click" onclick="netTrend('${p.exp}','${p.inc}')"><span class="nm">${esc(p.icon + ' ' + p.name)}</span>
+      <span class="pos">${eur.format(a)}</span><span class="neg">${eur.format(b)}</span><b class="${n >= 0 ? 'pos' : 'neg'}">${n > 0 ? '+' : ''}${eur.format(n)}</b></div>`;
+  }
+  return h + '<p class="muted small">Neto = prihod − trošak u istoj kategoriji. Dodirni red za zadnjih 6 mjeseci.</p></div>';
+}
+async function netTrend(expId, incId){
+  const c = catById(expId);
+  openSheet('<h2>Učitavam…</h2>');
+  await loadHist();
+  const ms = lastMonths(6);
+  const sum = (kind, id, d) => hist.rows.filter(t => t.kind === kind && t.category_id === id && t.date.startsWith(ymOf(d))).reduce((s, t) => s + +t.amount, 0);
+  const data = ms.map(d => { const a = sum('income', incId, d), b = sum('expense', expId, d); return { d, a, b, n: Math.round((a - b) * 100) / 100 }; });
+  const W = Math.min(chartW(), 560), H = 170, top = 16, left = 38, bottom = 24;
+  const m = niceMax(Math.max(...data.map(x => Math.abs(x.n)), 1)), mid = top + H / 2;
+  const Y = v => mid - v / m * (H / 2);
+  const gw = (W - left) / data.length, bw = Math.min(34, gw - 12);
+  let svg = `<line x1="${left}" x2="${W}" y1="${mid}" y2="${mid}" stroke="var(--text)" stroke-width="1" opacity=".5"/>
+    <text x="${left - 6}" y="${top + 4}" text-anchor="end" class="t-ax">+${short(m)}</text><text x="${left - 6}" y="${mid + 4}" text-anchor="end" class="t-ax">0</text>
+    <text x="${left - 6}" y="${top + H + 4}" text-anchor="end" class="t-ax">−${short(m)}</text>`;
+  data.forEach((x, i) => {
+    const gx = left + i * gw + gw / 2, y0 = Math.min(Y(x.n), mid), hh = Math.abs(Y(x.n) - mid);
+    svg += `<rect x="${gx - bw / 2}" y="${y0}" width="${bw}" height="${Math.max(hh, x.n ? 1 : 0)}" rx="3" fill="${x.n >= 0 ? 'var(--s3)' : 'var(--s2)'}"/>
+      <text x="${gx}" y="${top + H + 17}" text-anchor="middle" class="t-ax${x.d.getTime() === month.getTime() ? ' t-cur' : ''}">${MSHORT[x.d.getMonth()]}</text>
+      <rect x="${left + i * gw}" y="${top}" width="${gw}" height="${H}" class="hit" data-tip="${esc(`${MONTHS[x.d.getMonth()]} ${x.d.getFullYear()}\nPrihod: ${eur.format(x.a)}\nTrošak: ${eur.format(x.b)}\nNeto: ${eur.format(x.n)}`)}"/>`;
+  });
+  const tot = data.reduce((s, x) => s + x.n, 0);
+  openSheet(`<h2>↔️ ${c ? esc(c.icon + ' ' + c.name) : ''} – neto</h2>
+    <p class="muted small">Prihod − trošak po mjesecima (zeleno: više si dobio nego potrošio, narančasto: obrnuto)</p>
+    <svg width="100%" viewBox="0 0 ${W} ${H + top + bottom}" role="img" aria-label="Neto po mjesecima">${svg}</svg>
+    <p>Zadnjih 6 mjeseci ukupno: <b class="${tot >= 0 ? 'pos' : 'neg'}">${tot > 0 ? '+' : ''}${eur.format(tot)}</b> · prosjek ${eur.format(tot / data.length)}/mj</p>
+    <button class="btn" onclick="closeSheet()">Zatvori</button>`);
 }
 function renderStatPeriod(){
   if (statN === 'god') return statSeg() + renderYear();
@@ -1473,28 +1532,32 @@ function renderStatPeriod(){
     <p class="muted small">${n ? `Isprekidana crta = prosjek završenih mjeseci (${eur.format(avgExp)})` : ''}${n && cur ? ', ' : ''}${cur ? 'blijedi stupac = tekući mjesec' : ''}. Prijenosi između računa se ne računaju.</p></div>`;
 
   h += renderFixedCard();
-  // --- prosjek po kategorijama
-  const viewK = ymOf(month), byCat = {}, curCat = {};
-  const fullKeys = new Set(full.map(x => x.k));
-  for (const t of hist.rows) if (t.kind === 'expense') {
-    const k = t.category_id || 'none', mk = t.date.slice(0, 7);
-    if (fullKeys.has(mk)) byCat[k] = (byCat[k] || 0) + +t.amount;
-    if (mk === viewK) curCat[k] = (curCat[k] || 0) + +t.amount;
-  }
-  const ids = [...new Set([...Object.keys(byCat), ...Object.keys(curCat)])]
-    .map(id => ({ id, avg: n ? (byCat[id] || 0) / n : 0, cur: curCat[id] || 0 }))
-    .sort((a, b) => (b.avg - a.avg) || (b.cur - a.cur));
-  if (ids.length) {
-    h += `<div class="card"><h3>Po kategorijama</h3>
+  // --- prosjek po kategorijama (troškovi, pa prihodi)
+  const viewK = ymOf(month), fullKeys = new Set(full.map(x => x.k));
+  const catTable = (kind, title) => {
+    const byCat = {}, curCat = {};
+    for (const t of hist.rows) if (t.kind === kind) {
+      const k = t.category_id || 'none', mk = t.date.slice(0, 7);
+      if (fullKeys.has(mk)) byCat[k] = (byCat[k] || 0) + +t.amount;
+      if (mk === viewK) curCat[k] = (curCat[k] || 0) + +t.amount;
+    }
+    const ids = [...new Set([...Object.keys(byCat), ...Object.keys(curCat)])]
+      .map(id => ({ id, avg: n ? (byCat[id] || 0) / n : 0, cur: curCat[id] || 0 }))
+      .sort((a, b) => (b.avg - a.avg) || (b.cur - a.cur));
+    if (!ids.length) return '';
+    const good = kind === 'income';
+    let t = `<div class="card"><h3>${title}</h3>
       <div class="st-row st-head"><span>Kategorija</span><span>Prosjek</span><span>${MSHORT[month.getMonth()]}${viewK === curKey ? ' (dosad)' : ''}</span></div>`;
     for (const r of ids) {
       const c = catById(r.id), up = n && r.cur > r.avg * 1.1, down = n && r.cur < r.avg * 0.9;
-      h += `<div class="st-row click" onclick="catTrend('${r.id}')"><span class="nm">${c ? esc(c.icon + ' ' + c.name) : '📦 Bez kategorije'}</span>
+      t += `<div class="st-row click" onclick="catTrend('${r.id}')"><span class="nm">${c ? esc(c.icon + ' ' + c.name) : '📦 Bez kategorije'}</span>
         <span>${n ? eur.format(r.avg) : '–'}</span>
-        <span>${eur.format(r.cur)}${up ? ' <span class="neg">▲</span>' : down ? ' <span class="pos">▼</span>' : ''}</span></div>`;
+        <span>${eur.format(r.cur)}${up ? ` <span class="${good ? 'pos' : 'neg'}">▲</span>` : down ? ` <span class="${good ? 'neg' : 'pos'}">▼</span>` : ''}</span></div>`;
     }
-    h += `<p class="muted small">▲ više od prosjeka, ▼ manje od prosjeka (za više od 10 %). Dodirni kategoriju za njen graf.</p></div>`;
-  }
+    return t + `<p class="muted small">▲ više od prosjeka, ▼ manje od prosjeka (za više od 10 %). Dodirni kategoriju za njen graf.</p></div>`;
+  };
+  h += catTable('expense', 'Troškovi po kategorijama');
+  h += catTable('income', 'Prihodi po kategorijama');
   return h;
 }
 
@@ -1735,9 +1798,9 @@ function totals(){
   for (const t of mine()) { if (t.kind === 'income') inc += +t.amount; else if (t.kind === 'expense') exp += +t.amount; }
   return { inc, exp };
 }
-function spentByCat(){
-  const m = {};
-  for (const t of mine()) if (t.kind === 'expense') { const k = t.category_id || 'none'; m[k] = (m[k] || 0) + +t.amount; }
+function spentByCat(kind){
+  const m = {}, kd = kind || 'expense';
+  for (const t of mine()) if (t.kind === kd) { const k = t.category_id || 'none'; m[k] = (m[k] || 0) + +t.amount; }
   return m;
 }
 // > 0: partner duguje meni; < 0: ja dugujem partneru
