@@ -17,7 +17,8 @@
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root{--bg:#f4f6f5;--card:#fff;--text:#16211f;--muted:#6b7a77;--line:#e3e8e6;--acc:#0f766e;--onacc:#fff;--acc2:#ccfbf1;--pos:#15803d;--neg:#c2410c;--warn:#fef3c7;--warnt:#92400e}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1514;--card:#17201f;--text:#e7eeec;--muted:#93a39f;--line:#26312f;--acc:#2dd4bf;--onacc:#06201d;--acc2:#134e4a;--pos:#4ade80;--neg:#fb923c;--warn:#422006;--warnt:#fde68a}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1514;--card:#17201f;--text:#e7eeec;--muted:#93a39f;--line:#26312f;--acc:#2dd4bf;--onacc:#06201d;--acc2:#134e4a;--pos:#4ade80;--neg:#fb923c;--warn:#422006;--warnt:#fde68a}}
+:root[data-theme="dark"]{--bg:#0e1514;--card:#17201f;--text:#e7eeec;--muted:#93a39f;--line:#26312f;--acc:#2dd4bf;--onacc:#06201d;--acc2:#134e4a;--pos:#4ade80;--neg:#fb923c;--warn:#422006;--warnt:#fde68a}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
@@ -97,11 +98,15 @@ label.switch input{width:22px;height:22px;margin:0;flex:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.act{pointer-events:auto;display:flex;align-items:center;gap:12px}
 .toast-btn{background:none;border:0;color:var(--acc2);font:inherit;font-weight:700;cursor:pointer;padding:4px}
-@media (prefers-color-scheme:light){.toast-btn{color:#5eead4}}
+.toast-btn{color:#5eead4!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .toast-btn{color:#0f766e!important}}
+:root[data-theme="dark"] .toast-btn{color:#0f766e!important}
+body{background:var(--bg)}
 .fav-row{margin:0 0 10px}.fav-row .chip b{font-weight:600}
 /* grafovi */
 :root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--sx:#a8aba9}
-@media (prefers-color-scheme:dark){:root{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--sx:#5f6866}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--sx:#5f6866}}
+:root[data-theme="dark"]{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--sx:#5f6866}
 .seg-sm button{padding:7px 4px;font-size:14px}
 svg text{font-family:inherit}
 .t-ax{fill:var(--muted);font-size:11px}.t-cur{fill:var(--text);font-weight:700}
@@ -155,6 +160,9 @@ svg text{font-family:inherit}
 .btn.danger-fill{background:#dc2626;color:#fff}
 .kind-pills{display:flex;gap:6px;margin:10px 0 2px}
 .net-row{grid-template-columns:1fr 70px 70px 78px}
+#offline{position:fixed;left:50%;transform:translateX(-50%);top:calc(6px + env(safe-area-inset-top));z-index:30;background:#92400e;color:#fff;font-size:13px;padding:7px 12px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.25);max-width:92vw;text-align:center}
+#offline[hidden]{display:none}
+.flt-bar{display:flex;gap:8px;margin-top:8px}.flt-bar .btn{margin:0;flex:1}
 #tip{position:fixed;display:none;pointer-events:none;background:var(--text);color:var(--bg);padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.35;white-space:pre-line;z-index:30;max-width:240px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
 .auth{margin-top:10vh;text-align:center}.auth label{text-align:left}
 .logo{font-size:52px}.auth h1{margin:4px 0}
@@ -187,10 +195,26 @@ label.btn{text-align:center;font-size:16px}
 <button id="fab" hidden onclick="openNew()" aria-label="Novi unos">+</button>
 <div id="overlay" hidden onclick="if(event.target===this)closeSheet()"><div id="sheet"></div></div>
 <div id="toast"></div>
+<div id="offline" hidden>📴 Nema interneta – promjene se trenutno ne mogu spremiti</div>
 <div id="drawerBg" onclick="closeDrawer()"></div>
 <nav id="drawer" aria-label="Glavni izbornik"></nav>
 
 <script>
+// tema (sustav / svijetla / tamna) – postavlja se prije prikaza da nema treptanja
+function applyTheme(t){
+  const r = document.documentElement;
+  if (t === 'light' || t === 'dark') r.dataset.theme = t; else delete r.dataset.theme;
+  const dark = t === 'dark' || (t !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  const mc = document.querySelector('meta[name=theme-color]'); if (mc) mc.content = dark ? '#0e1514' : '#0f766e';
+}
+let theme = 'system';
+try { theme = localStorage.getItem('theme') || 'system'; } catch (e) {}
+applyTheme(theme);
+function chooseTheme(){
+  openSheet(`<h2>🎨 Tema</h2>${[['system', '📱 Kao na mobitelu'], ['light', '☀️ Svijetla'], ['dark', '🌙 Tamna']].map(([k, l]) =>
+    `<button class="btn ${theme === k ? 'primary' : ''}" onclick="setTheme('${k}')">${l}</button>`).join('')}`);
+}
+function setTheme(t){ theme = t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); closeSheet(); render(); }
 // =====================================================================
 //  OVDJE ZALIJEPI PODATKE IZ SVOG SUPABASE PROJEKTA "Financije"
 //  (Project Settings -> API: Project URL i anon/public key)
@@ -199,7 +223,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v13.2';
+const VERSION = 'v14';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -215,6 +239,27 @@ function parseAmount(s){
   const n = Number(s);
   return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
 }
+// Supabase vraća najviše 1000 redova po upitu – ovo čita sve, u dijelovima po 1000
+async function fetchAll(build){
+  const out = [], step = 1000;
+  for (let from = 0; from < 100000; from += step) {
+    const { data, error } = await build().range(from, from + step - 1);
+    if (error) return { data: out.length ? out : null, error };
+    out.push(...(data || []));
+    if (!data || data.length < step) break;
+  }
+  return { data: out, error: null };
+}
+// sprječava dvostruko spremanje kad se gumb dodirne dvaput
+let busy = false;
+function once(fn){
+  return async function(...a){
+    if (busy) return; busy = true;
+    document.querySelectorAll('#sheet .btn').forEach(b => b.disabled = true);
+    try { return await fn.apply(this, a); }
+    finally { busy = false; document.querySelectorAll('#sheet .btn').forEach(b => b.disabled = false); }
+  };
+}
 let toastTimer;
 function toast(m){
   const t = $('#toast'); t.classList.remove('act'); t.textContent = m; t.classList.add('show');
@@ -224,12 +269,15 @@ function hrError(m){
   const map = {
     'Invalid login credentials': 'Pogrešan email ili lozinka.',
     'User already registered': 'Za taj email već postoji račun.',
-    'Email not confirmed': 'Email još nije potvrđen – provjeri inbox.'
+    'Email not confirmed': 'Email još nije potvrđen – provjeri inbox.',
+    'New password should be different from the old password.': 'Nova lozinka mora biti drukčija od stare.',
+    'Failed to fetch': 'Nema veze s internetom.',
+    'For security purposes, you can only request this after 60 seconds.': 'Pričekaj minutu pa pokušaj ponovno.'
   };
   return map[m] || m;
 }
 
-let sb, user = null, profile = null, partner = null;
+let sb, user = null, profile = null, partner = null, recovery = false;
 let cats = [], txs = [], shareTxs = [], recs = [];
 let month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
 let tab = 'pregled', txFilter = 'sve', authMode = 'login';
@@ -245,7 +293,14 @@ async function init(){
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const { data: { session } } = await sb.auth.getSession();
   if (session) { user = session.user; await startApp(); } else showAuth();
-  sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { user = null; showAuth(); } });
+  sb.auth.onAuthStateChange((ev, ses) => {
+    if (ev === 'SIGNED_OUT') { user = null; showAuth(); }
+    if (ev === 'PASSWORD_RECOVERY') {          // otvoren link "zaboravljena lozinka" iz maila
+      recovery = true;
+      if (ses && ses.user && !user) { user = ses.user; startApp().then(showNewPassword); }
+      else setTimeout(showNewPassword, 300);
+    }
+  });
   document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState === 'visible' && user && profile && $('#overlay').hidden) {
       await loadProfile(); await loadCats(); await loadAccounts();
@@ -266,12 +321,37 @@ function showAuth(msg){
     <label>Lozinka<input id="aPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}"></label>
     <button class="btn primary" id="aGo">${reg ? 'Registracija' : 'Prijava'}</button>
     <button class="btn link" id="aSwitch">${reg ? 'Već imaš račun? Prijavi se' : 'Nemaš račun? Registriraj se'}</button>
+    ${reg ? '' : '<button class="btn link small" id="aForgot">Zaboravljena lozinka?</button>'}
     <p id="aMsg" class="msg">${esc(msg || '')}</p></div>`;
   $('#aSwitch').onclick = () => { authMode = reg ? 'login' : 'register'; showAuth(); };
   $('#aGo').onclick = doAuth;
+  const fg = $('#aForgot'); if (fg) fg.onclick = forgotPassword;
   $('#aPass').onkeydown = e => { if (e.key === 'Enter') doAuth(); };
 }
 
+async function forgotPassword(){
+  const email = $('#aEmail').value.trim(), msg = $('#aMsg');
+  if (!email) { msg.textContent = 'Upiši email pa ponovno dodirni „Zaboravljena lozinka?”.'; $('#aEmail').focus(); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  msg.textContent = error ? hrError(error.message) : 'Poslan ti je email s linkom za novu lozinku. Otvori ga na ovom uređaju.';
+}
+function showNewPassword(){
+  openSheet(`<h2>🔑 Nova lozinka</h2>
+    <label>Nova lozinka<input id="np1" type="password" autocomplete="new-password"></label>
+    <label>Ponovi lozinku<input id="np2" type="password" autocomplete="new-password"></label>
+    <p id="npMsg" class="msg small"></p>
+    <button class="btn primary" onclick="saveNewPassword()">Spremi lozinku</button>
+    <button class="btn link" onclick="closeSheet()">Odustani</button>`);
+  setTimeout(() => { const e = $('#np1'); if (e) e.focus(); }, 150);
+}
+async function saveNewPassword(){
+  const a = $('#np1').value, b = $('#np2').value, m = $('#npMsg');
+  if (a.length < 6) { m.textContent = 'Lozinka mora imati barem 6 znakova.'; return; }
+  if (a !== b) { m.textContent = 'Lozinke se ne podudaraju.'; return; }
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) { m.textContent = hrError(error.message); return; }
+  closeSheet(); toast('Lozinka je promijenjena');
+}
 async function doAuth(){
   const email = $('#aEmail').value.trim(), password = $('#aPass').value, msg = $('#aMsg');
   msg.textContent = '';
@@ -306,6 +386,11 @@ async function startApp(){
     // profil nedostaje – pokušaj ga napraviti
     const { error } = await sb.rpc('ensure_my_profile');
     err = error ? error.message : await loadProfile();
+  }
+  if (!profile && (!navigator.onLine || /fetch|network|load failed/i.test(err || ''))) {
+    $('#app').innerHTML = `<div class="card center"><h3>📴 Nema interneta</h3><p class="muted">Aplikacija treba internet za učitavanje tvojih podataka.</p>
+      <button class="btn primary" onclick="startApp()">Pokušaj ponovno</button></div>`;
+    return;
   }
   if (!profile) {
     $('#app').innerHTML = `<div class="card"><h3>Baza još nije postavljena</h3>
@@ -380,8 +465,8 @@ async function loadHist(){
   const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
   const key = iso(start);
   if (hist && hist.key === key) return;
-  const { data } = await sb.from('transactions').select('date,kind,amount,category_id')
-    .eq('user_id', user.id).in('kind', ['income', 'expense']).gte('date', key).lte('date', iso(end));
+  const { data } = await fetchAll(() => sb.from('transactions').select('id,date,kind,amount,category_id')
+    .eq('user_id', user.id).in('kind', ['income', 'expense']).gte('date', key).lte('date', iso(end)).order('id'));
   hist = { key, rows: data || [] };
 }
 function needHist(){
@@ -569,7 +654,7 @@ async function loadFavs(){
 }
 async function loadCatUse(){
   const from = new Date(); from.setDate(from.getDate() - 120);
-  const { data } = await sb.from('transactions').select('category_id').eq('user_id', user.id).gte('date', iso(from)).in('kind', ['expense', 'income']);
+  const { data } = await fetchAll(() => sb.from('transactions').select('id,category_id').eq('user_id', user.id).gte('date', iso(from)).in('kind', ['expense', 'income']).order('id'));
   catUse = {};
   for (const t of data || []) if (t.category_id) catUse[t.category_id] = (catUse[t.category_id] || 0) + 1;
 }
@@ -658,10 +743,10 @@ function toastAction(msg, label, fn){
 //  PRETRAGA I FILTERI + OZNAKE
 // =====================================================================
 let flt = { q: '', scope: 'mjesec', cat: '', acc: '', tag: '', kind: '' };
-let fltData = null;       // { key, rows } za opseg godina/sve
+let fltData = null, fltOpen = false;       // { key, rows } za opseg godina/sve
 let allTags = [];         // [naziv, broj]
 async function loadTags(){
-  const { data, error } = await sb.from('transactions').select('tags').eq('user_id', user.id).not('tags', 'is', null);
+  const { data, error } = await fetchAll(() => sb.from('transactions').select('id,tags').eq('user_id', user.id).not('tags', 'is', null).order('id'));
   if (error) { allTags = []; return; }
   const c = {};
   for (const t of data || []) for (const g of t.tags || []) c[g] = (c[g] || 0) + 1;
@@ -672,9 +757,11 @@ function fltKey(){ return flt.scope === 'godina' ? 'g' + month.getFullYear() : f
 async function ensureFltData(){
   const key = fltKey();
   if (!key || (fltData && fltData.key === key)) return;
-  let q = sb.from('transactions').select('*').order('date', { ascending: false }).order('created_at', { ascending: false }).limit(5000);
-  if (flt.scope === 'godina') q = q.gte('date', `${month.getFullYear()}-01-01`).lte('date', `${month.getFullYear()}-12-31`);
-  const { data } = await q;
+  const { data } = await fetchAll(() => {
+    let q = sb.from('transactions').select('*').order('date', { ascending: false }).order('created_at', { ascending: false }).order('id');
+    if (flt.scope === 'godina') q = q.gte('date', `${month.getFullYear()}-01-01`).lte('date', `${month.getFullYear()}-12-31`);
+    return q;
+  });
   fltData = { key, rows: (data || []).filter(t => t.user_id === user.id || t.is_shared || isJoint(accById(t.account_id)) || isJoint(accById(t.to_account_id)))
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.created_at || '').localeCompare(String(a.created_at || ''))) };
 }
@@ -729,20 +816,23 @@ function renderTxList(){
 }
 function renderTx(){
   if (flt.scope !== 'mjesec' && !(fltData && fltData.key === fltKey())) ensureFltData().then(() => { if (tab === 'tx') render(); });
+  const showFlt = fltOpen || !!(flt.kind || flt.cat || flt.acc || flt.tag);
   const sel = (k, label, opts) => `<select onchange="setFlt('${k}',this.value)"><option value="">${label}</option>${opts.map(([v, l]) => `<option value="${esc(v)}" ${flt[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   let h = `<div class="card filters">
     <input id="txQ" type="search" placeholder="🔎 Traži (npr. bolt, konzum, kava)" value="${esc(flt.q)}" oninput="setFlt('q',this.value)">
     <div class="seg seg-sm" style="margin:10px 0 0">${[['mjesec', MONTHS[month.getMonth()]], ['godina', String(month.getFullYear())], ['sve', 'Sve']].map(([k, l]) =>
       `<button class="${flt.scope === k ? 'on' : ''}" onclick="setFlt('scope','${k}')">${l}</button>`).join('')}</div>
-    <div class="seg seg-sm kind-seg" style="margin:8px 0 0">${[['', 'Sve'], ['expense', 'Troškovi'], ['income', 'Prihodi']].concat(activeAccs().length > 1 ? [['transfer', 'Prijenosi']] : []).map(([k, l]) =>
+    <div class="flt-bar"><button class="btn small" onclick="fltOpen=!fltOpen;render()">⚙️ Filteri${[flt.kind, flt.cat, flt.acc, flt.tag].filter(Boolean).length ? ' (' + [flt.kind, flt.cat, flt.acc, flt.tag].filter(Boolean).length + ')' : ''} ${showFlt ? '▴' : '▾'}</button>
+      <button class="btn small" onclick="openImport()">⬆️ Uvoz izvoda</button></div>
+    ${showFlt ? `<div class="seg seg-sm kind-seg" style="margin:8px 0 0">${[['', 'Sve'], ['expense', 'Troškovi'], ['income', 'Prihodi']].concat(activeAccs().length > 1 ? [['transfer', 'Prijenosi']] : []).map(([k, l]) =>
       `<button class="${flt.kind === k ? 'on' : ''}" onclick="setFlt('kind','${k}')">${l}</button>`).join('')}</div>
     <div class="flt-row">
       ${flt.kind === 'transfer' ? '' : sel('cat', 'Sve kategorije', (flt.kind ? myCats(flt.kind) : [...myCats('expense'), ...myCats('income')]).map(c => [c.id, c.icon + ' ' + c.name]).concat([['none', '📦 Bez kategorije']]))}
       ${activeAccs().length > 1 ? sel('acc', 'Svi računi', activeAccs().map(a => [a.id, a.icon + ' ' + a.name])) : ''}
       ${allTags.length ? sel('tag', 'Sve oznake', allTags.map(([t]) => [t, '#' + t])) : ''}
-    </div>
+    </div>` : ''}
     ${fltActive() ? `<button class="btn link small" onclick="flt={q:'',scope:flt.scope,cat:'',acc:'',tag:'',kind:''};render()">✕ Očisti filtere</button>` : ''}
-    <button class="btn small" style="margin-top:8px" onclick="openImport()">⬆️ Uvoz izvoda</button></div>`;
+</div>`;
   if (partner) h += `<div class="seg">${[['sve','Sve'],['moje','Moje'],['zaj','Zajedničko']]
     .map(([k, l]) => `<button class="${txFilter === k ? 'on' : ''}" onclick="txFilter='${k}';render()">${l}</button>`).join('')}</div>`;
   return h + `<div id="txList">${renderTxRows(txSource())}</div>`;
@@ -769,7 +859,7 @@ function rmTag(i){ syncDraft(); draft.tags.splice(i, 1); showTxSheet(); }
 // ---- pregled oznaka
 let tagStats = null;
 async function loadTagStats(){
-  const { data } = await sb.from('transactions').select('kind,amount,tags,date').eq('user_id', user.id).not('tags', 'is', null);
+  const { data } = await fetchAll(() => sb.from('transactions').select('id,kind,amount,tags,date').eq('user_id', user.id).not('tags', 'is', null).order('id'));
   const m = {};
   for (const t of data || []) for (const g of t.tags || []) {
     const x = m[g] || (m[g] = { tag: g, n: 0, exp: 0, inc: 0, from: t.date, to: t.date });
@@ -778,14 +868,15 @@ async function loadTagStats(){
   }
   tagStats = Object.values(m).sort((a, b) => b.to.localeCompare(a.to));
 }
+function openTag(i){ const x = tagStats && tagStats[i]; if (!x) return; flt = { q: '', scope: 'sve', cat: '', acc: '', tag: x.tag, kind: '' }; go('tx'); }
 function renderTags(){
   if (!tagStats) { loadTagStats().then(() => { if (tab === 'tags') render(); }); return back() + '<p class="muted center">Učitavam…</p>'; }
   let h = back() + `<div class="card list"><h3>🏷️ Oznake</h3>
     <p class="muted small">Oznakom povežeš unose iz različitih kategorija – npr. #ljubljana na smještaju, hrani i prijevozu – pa vidiš koliko te nešto stajalo ukupno. Oznaku dodaješ u prozoru za unos.</p>`;
   if (!tagStats.length) h += '<p class="muted">Još nema oznaka.</p>';
-  for (const x of tagStats) h += `<div class="tx" onclick="flt={q:'',scope:'sve',cat:'',acc:'',tag:'${esc(x.tag)}',kind:''};go('tx')">
+  tagStats.forEach((x, i) => h += `<div class="tx" onclick="openTag(${i})">
       <span class="ic">🏷️</span><div class="tx-main"><div>#${esc(x.tag)}</div><div class="muted small">${x.n} unosa · ${fmtDate(x.from)}${x.to !== x.from ? ' – ' + fmtDate(x.to) : ''}${x.inc ? ' · prihodi ' + eur.format(x.inc) : ''}</div></div>
-      <b class="neg">${x.exp ? eur.format(x.exp) : ''}</b></div>`;
+      <b class="neg">${x.exp ? eur.format(x.exp) : ''}</b></div>`);
   return h + '</div>';
 }
 
@@ -1170,7 +1261,7 @@ async function impBuild(){
   const dates = items.map(x => x.date).sort();
   const lo = new Date(dates[0]); lo.setDate(lo.getDate() - 3);
   const hiD = new Date(dates[dates.length - 1]); hiD.setDate(hiD.getDate() + 3);
-  const { data: ex } = await sb.from('transactions').select('*').eq('user_id', user.id).gte('date', iso(lo)).lte('date', iso(hiD));
+  const { data: ex } = await fetchAll(() => sb.from('transactions').select('*').eq('user_id', user.id).gte('date', iso(lo)).lte('date', iso(hiD)).order('id'));
   const exist = ex || [], used = new Set();
   const dayDiff = (a, b) => Math.abs((new Date(a) - new Date(b)) / 864e5);
   let dups = 0;
@@ -1344,8 +1435,8 @@ let yearData = null;
 async function loadYear(){
   const Y = month.getFullYear();
   if (yearData && yearData.Y === Y) return;
-  const { data } = await sb.from('transactions').select('date,kind,amount,category_id').eq('user_id', user.id)
-    .in('kind', ['income', 'expense']).gte('date', `${Y - 1}-01-01`).lte('date', `${Y}-12-31`);
+  const { data } = await fetchAll(() => sb.from('transactions').select('id,date,kind,amount,category_id').eq('user_id', user.id)
+    .in('kind', ['income', 'expense']).gte('date', `${Y - 1}-01-01`).lte('date', `${Y}-12-31`).order('id'));
   yearData = { Y, rows: data || [] };
 }
 async function changeYear(d){ month = new Date(month.getFullYear() + d, month.getMonth(), 1); await loadMonth(); render(); }
@@ -1621,14 +1712,14 @@ function initTip(){
 async function loadMonth(){
   hist = null; fltData = null; tagStats = null; yearData = null;
   const s = iso(month), e = iso(new Date(month.getFullYear(), month.getMonth() + 1, 0));
-  const { data, error } = await sb.from('transactions').select('*')
+  const { data, error } = await fetchAll(() => sb.from('transactions').select('*')
     .gte('date', s).lte('date', e)
-    .order('date', { ascending: false }).order('created_at', { ascending: false });
+    .order('date', { ascending: false }).order('created_at', { ascending: false }).order('id'));
   if (error) toast(error.message);
   txs = data || [];
   if (partner) {
-    const { data: sh } = await sb.from('transactions').select('user_id,amount,kind')
-      .eq('is_shared', true).in('kind', ['expense', 'settlement']);
+    const { data: sh } = await fetchAll(() => sb.from('transactions').select('id,user_id,amount,kind')
+      .eq('is_shared', true).in('kind', ['expense', 'settlement']).order('id'));
     shareTxs = (sh || []).filter(t => t.user_id === user.id || t.user_id === partner.id);
   } else shareTxs = [];
   await loadAccBal();
@@ -1659,7 +1750,7 @@ async function loadAccBal(){
   accBals = {};
   if (!accounts.length) return;
   const minDate = accounts.reduce((m, a) => a.opening_date < m ? a.opening_date : m, accounts[0].opening_date);
-  const { data, error } = await sb.from('transactions').select('user_id,kind,amount,account_id,to_account_id,date').gte('date', minDate);
+  const { data, error } = await fetchAll(() => sb.from('transactions').select('id,user_id,kind,amount,account_id,to_account_id,date').gte('date', minDate).order('id'));
   if (error) return;
   const b = {}; for (const a of accounts) b[a.id] = +a.opening_balance || 0;
   const add = (accId, v, date) => { const a = accId ? accById(accId) : accById(primaryAcc()); if (a && date >= a.opening_date) b[a.id] += v; };
@@ -1907,6 +1998,22 @@ function drawerGo(t){ closeDrawer(); if (t === 'import') return openImport(); go
     else if (drawerOpen && dx < -50) { sx = null; closeDrawer(); }
   }, { passive: true });
 })();
+// povlačenje lijevo/desno po sadržaju mijenja mjesec (Pregled, Statistika, Unosi, Budžet)
+(function(){
+  let x0 = null, y0 = null, t0 = 0;
+  document.addEventListener('touchstart', e => {
+    const t = e.touches[0], tg = e.target;
+    const ok = user && $('#overlay').hidden && !drawerOpen && ['pregled', 'stat', 'tx', 'budzet'].includes(tab)
+      && tg && tg.closest && tg.closest('#app') && !tg.closest('input,select,textarea,.ai-items') && t.clientX > 30;
+    x0 = ok ? t.clientX : null; y0 = t.clientY; t0 = Date.now();
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = Math.abs(t.clientY - y0);
+    x0 = null;
+    if (Math.abs(dx) > 80 && dy < 50 && Date.now() - t0 < 700) changeMonth(dx < 0 ? 1 : -1);
+  }, { passive: true });
+})();
 function render(){
   const monthTab = ['pregled', 'tx', 'budzet', 'stat'].includes(tab);
   $('#monthNav').hidden = !monthTab;
@@ -1930,11 +2037,53 @@ function renderPregled(){
       <div class="card stat click" onclick="openMonthTx('expense')"><span class="muted small">Troškovi ›</span><b class="neg">${eur.format(exp)}</b></div>
     </div>
     <div class="card stat big click" onclick="openMonthTx()"><span class="muted small">Saldo mjeseca <span style="float:right">Unosi ›</span></span><b class="${sal >= 0 ? 'pos' : 'neg'}">${eur.format(sal)}</b></div>`;
-  const over = myCats('expense').filter(c => c.budget > 0 && (by[c.id] || 0) > +c.budget);
-  if (over.length) h += `<div class="card warn">⚠️ Prekoračen budžet: ${over.map(c => esc(c.icon + ' ' + c.name)).join(', ')}</div>`;
+  h += renderBudgetMini(by);
+  h += renderUpcoming();
+  h += renderRecentTx();
   h += renderGoalsCard();
   if (partner) h += renderShareCard();
   return h;
+}
+// budžeti: tri kategorije s najvećim postotkom potrošnje
+function renderBudgetMini(by){
+  const b = myCats('expense').filter(c => +c.budget > 0).map(c => ({ c, s: by[c.id] || 0, p: (by[c.id] || 0) / +c.budget }))
+    .sort((x, y) => y.p - x.p);
+  if (!b.length) return '';
+  const now = new Date(), isCur = month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth();
+  const dayPct = isCur ? now.getDate() / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() : 1;
+  const over = b.filter(x => x.p > 1).length;
+  return `<div class="card click" onclick="go('budzet')"><div class="bar-label" style="margin-bottom:2px"><b>🎯 Budžeti</b><span class="muted small">${over ? `<span class="neg">${over} prekoračen${over === 1 ? '' : 'a'}</span> · ` : ''}Svi ›</span></div>
+    ${b.slice(0, 3).map(x => `<div class="bar-row"><div class="bar-label"><span>${esc(x.c.icon + ' ' + x.c.name)}</span><span>${eur.format(x.s)} / ${eur.format(+x.c.budget)}</span></div>
+      <div class="bar ${x.p > 1 ? 'over' : x.p > Math.max(0.8, dayPct + 0.1) ? 'near' : ''}"><i style="width:${Math.min(100, x.p * 100).toFixed(1)}%"></i></div></div>`).join('')}
+    ${isCur ? `<p class="muted small" style="margin:6px 0 0">Prošlo je ${Math.round(dayPct * 100)} % mjeseca.</p>` : ''}</div>`;
+}
+// sljedeća plaćanja iz ponavljajućih unosa (idućih 10 dana)
+function nextDue(r, from){
+  const d0 = new Date(from.getFullYear(), from.getMonth(), 1);
+  for (let i = 0; i < 2; i++) {
+    const y = d0.getFullYear(), m = d0.getMonth() + i;
+    const dim = new Date(y, m + 1, 0).getDate(), dt = new Date(y, m, Math.min(r.day_of_month, dim));
+    if (dt >= from) return dt;
+  }
+  return null;
+}
+function renderUpcoming(){
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const lim = new Date(today); lim.setDate(today.getDate() + 10);
+  const list = recs.filter(r => r.active).map(r => ({ r, d: nextDue(r, tomorrow) })).filter(x => x.d && x.d <= lim).sort((a, b) => a.d - b.d);
+  if (!list.length) return '';
+  const when = d => { const n = Math.round((d - today) / 864e5); return n === 1 ? 'sutra' : `za ${n} dana · ${d.getDate()}. ${d.getMonth() + 1}.`; };
+  return `<div class="card list"><div class="bar-label"><b>📅 Uskoro</b><span class="muted small click" onclick="go('rec')">Ponavljajući ›</span></div>
+    ${list.slice(0, 4).map(({ r, d }) => { const c = catById(r.category_id); return `<div class="tx" onclick="go('rec')"><span class="ic">${esc(c ? c.icon : '🔁')}</span>
+      <div class="tx-main"><div>${esc(r.note || (c ? c.name : ''))}</div><div class="muted small">${when(d)}</div></div>
+      <b class="${r.kind === 'income' ? 'pos' : 'neg'}">${r.kind === 'income' ? '+' : '−'}${eur.format(r.amount)}</b></div>`; }).join('')}</div>`;
+}
+// zadnjih 5 unosa u odabranom mjesecu
+function renderRecentTx(){
+  if (!txs.length) return `<div class="card center muted small">Još nema unosa u ovom mjesecu – dodaj prvi gumbom <b>+</b>.</div>`;
+  return `<div class="card list"><div class="bar-label"><b>🧾 Zadnji unosi</b><span class="muted small click" onclick="openMonthTx()">Svi (${txs.length}) ›</span></div>
+    ${txs.slice(0, 5).map(txRowHtml).join('')}</div>`;
 }
 
 // saldo mjeseca -> popis unosa za taj mjesec (bez filtera)
@@ -2042,6 +2191,8 @@ function renderMore(){
     <div class="row-btn" onclick="go('fav')"><span>⭐ Brzi unosi</span><span class="muted">${favs.length || ''} ›</span></div>
     <div class="row-btn" onclick="openImport()"><span>⬆️ Uvoz izvoda (PBZ, Revolut…)</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="exportCsv()"><span>⬇️ Izvoz u CSV (Excel)</span></div>
+    <div class="row-btn" onclick="chooseTheme()"><span>🎨 Tema</span><span class="muted">${{ system: 'kao na mobitelu', light: 'svijetla', dark: 'tamna' }[theme]} ›</span></div>
+    <div class="row-btn" onclick="showNewPassword()"><span>🔑 Promijeni lozinku</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="showDiag()"><span>🔧 Dijagnostika</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="logout()"><span>🚪 Odjava</span></div></div>
     <p class="muted small center">${esc(user.email)} · Financije ${VERSION}</p>`;
@@ -2390,12 +2541,7 @@ async function saveTx(){
   month = new Date(y, m - 1, 1);
   await loadMonth(); render();
 }
-async function delTx(){
-  if (!confirm('Obrisati ovaj unos?')) return;
-  const { error } = await sb.from('transactions').delete().eq('id', draft.id);
-  if (error) return toast(error.message);
-  closeSheet(); await loadMonth(); render();
-}
+async function delTx(){ return deleteTx(draft.id); }
 
 // ---------------- OSTALO ----------------
 function openSheet(h){
@@ -2417,7 +2563,7 @@ function closeSheet(fromHistory){
 }
 
 async function exportCsv(){
-  const { data, error } = await sb.from('transactions').select('*').eq('user_id', user.id).order('date');
+  const { data, error } = await fetchAll(() => sb.from('transactions').select('*').eq('user_id', user.id).order('date').order('id'));
   if (error) return toast(error.message);
   const kinds = { expense: 'Trošak', income: 'Prihod', settlement: 'Podmirenje', transfer: 'Prijenos' };
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -2436,6 +2582,7 @@ async function logout(){ closeDrawer(); await sb.auth.signOut(); user = null; pr
 
 // provjera nove verzije: ako je na GitHubu novija, osvježi aplikaciju
 async function checkUpdate(){
+  if (/access_token|type=recovery|code=/.test(location.hash + location.search)) return;
   try {
     const r = await fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' });
     const m = (await r.text()).match(/const VERSION = '([^']+)'/);
@@ -2447,6 +2594,12 @@ async function checkUpdate(){
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+for (const n of ['saveTx', 'quickAdd', 'aiSave', 'saveRec', 'settle', 'saveAcc', 'saveGoal', 'goalAdd', 'deleteTx', 'saveCat', 'saveBudget', 'saveFav'])
+  if (typeof window[n] === 'function') window[n] = once(window[n]);
+function netState(){ const off = !navigator.onLine; $('#offline').hidden = !off; }
+window.addEventListener('offline', netState);
+window.addEventListener('online', async () => { netState(); if (user && profile) { await loadMonth(); render(); toast('Ponovno si na internetu'); } else if (user) startApp(); });
+netState();
 initTip();
 initLongPress();
 init();
