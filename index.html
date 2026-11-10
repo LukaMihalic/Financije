@@ -91,8 +91,12 @@ label.switch input{width:22px;height:22px;margin:0;flex:none}
 #nav .gap{width:66px}
 #fab{position:fixed;right:max(16px,calc(50% - 304px));bottom:calc(24px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;border:0;background:var(--acc);color:var(--onacc);font-size:34px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:7;cursor:pointer}
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10;display:flex;align-items:flex-end;justify-content:center}
-#sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom))}
-.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 10px}
+#sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;overscroll-behavior:contain;border-radius:20px 20px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom));will-change:transform}
+#overlay{overscroll-behavior:contain}
+#overlay:not([hidden]) #sheet{animation:sheetUp .22s ease-out}
+@keyframes sheetUp{from{transform:translateY(40%);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){#overlay:not([hidden]) #sheet{animation:none}}
+.grab{width:44px;height:5px;border-radius:3px;background:var(--muted);opacity:.5;margin:2px auto 10px;box-sizing:content-box;padding:6px 40px;background-clip:content-box;cursor:grab;touch-action:none}
 #sheet h2{margin:4px 0 14px;font-size:20px}
 #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -223,7 +227,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v14';
+const VERSION = 'v14.1';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -2013,6 +2017,35 @@ function drawerGo(t){ closeDrawer(); if (t === 'import') return openImport(); go
     x0 = null;
     if (Math.abs(dx) > 80 && dy < 50 && Date.now() - t0 < 700) changeMonth(dx < 0 ? 1 : -1);
   }, { passive: true });
+})();
+// povlačenje prozora prema dolje ga zatvara (za crticu na vrhu, ili za sadržaj kad je prozor pomaknut sasvim gore)
+(function(){
+  let y0 = null, dy = 0, t0 = 0, sh = null;
+  document.addEventListener('touchstart', e => {
+    if ($('#overlay').hidden || !e.target || !e.target.closest || !e.target.closest('#sheet')) return;
+    sh = $('#sheet');
+    const t = e.touches[0], onTop = e.target.closest('.grab') || (t.clientY - sh.getBoundingClientRect().top) < 44;
+    if (!onTop && (sh.scrollTop > 0 || e.target.closest('input,select,textarea,.ai-items,#reader,.chips'))) return;
+    y0 = t.clientY; dy = 0; t0 = Date.now(); sh.style.transition = 'none';
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0 || sh.scrollTop > 0) { if (sh.scrollTop > 0) y0 = null; sh.style.transform = ''; return; }
+    sh.style.transform = `translateY(${dy}px)`;
+    $('#overlay').style.background = `rgba(0,0,0,${Math.max(0.1, 0.45 - dy / 900)})`;
+  }, { passive: true });
+  const end = () => {
+    if (y0 === null) return; y0 = null;
+    const fast = dy > 50 && Date.now() - t0 < 250;
+    sh.style.transition = 'transform .2s ease';
+    if (dy > Math.min(160, sh.offsetHeight * 0.3) || fast) {
+      sh.style.transform = 'translateY(100%)';
+      setTimeout(() => { closeSheet(); sh.style.transform = ''; sh.style.transition = ''; $('#overlay').style.background = ''; }, 190);
+    } else { sh.style.transform = ''; $('#overlay').style.background = ''; }
+  };
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', end, { passive: true });
 })();
 function render(){
   const monthTab = ['pregled', 'tx', 'budzet', 'stat'].includes(tab);
