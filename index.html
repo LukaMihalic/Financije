@@ -227,7 +227,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v14.1';
+const VERSION = 'v14.2';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -240,6 +240,7 @@ const ymKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
 function parseAmount(s){
   s = String(s).trim().replace(/\s/g, '').replace('€', '');
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); // 1.500 = tisuću petsto, ne 1,50
   const n = Number(s);
   return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
 }
@@ -1752,12 +1753,13 @@ function defaultAcc(){
 // Stanje svakog računa = početno stanje + prihodi − troškovi ± prijenosi od datuma početnog stanja
 async function loadAccBal(){
   accBals = {};
-  if (!accounts.length) return;
+  if (!accounts.length) return true;
   const minDate = accounts.reduce((m, a) => a.opening_date < m ? a.opening_date : m, accounts[0].opening_date);
   const { data, error } = await fetchAll(() => sb.from('transactions').select('id,user_id,kind,amount,account_id,to_account_id,date').gte('date', minDate).order('id'));
-  if (error) return;
-  const b = {}; for (const a of accounts) b[a.id] = +a.opening_balance || 0;
-  const add = (accId, v, date) => { const a = accId ? accById(accId) : accById(primaryAcc()); if (a && date >= a.opening_date) b[a.id] += v; };
+  if (error) return false;
+  const b = {}, today = iso(new Date()); for (const a of accounts) b[a.id] = +a.opening_balance || 0;
+  // unosi s budućim datumom još nisu prošli kroz banku, pa stanje mijenjaju tek na taj dan
+  const add = (accId, v, date) => { const a = accId ? accById(accId) : accById(primaryAcc()); if (a && date >= a.opening_date && date <= today) b[a.id] += v; };
   for (const t of data || []) {
     const v = +t.amount;
     if (t.user_id !== user.id) {
@@ -1775,6 +1777,7 @@ async function loadAccBal(){
   }
   for (const k in b) b[k] = Math.round(b[k] * 100) / 100;
   accBals = b;
+  return true;
 }
 function fmtDate(s){ const [y, m, d] = s.split('-'); return `${+d}. ${+m}. ${y}.`; }
 function renderAccountsCard(){
@@ -1811,8 +1814,8 @@ function editAcc(id, joint){
     <label>Ikona<input id="aIc" value="${esc(a.icon)}" maxlength="8" style="font-size:24px;text-align:center"></label>
     <div class="chips">${['🏦','💳','💵','📲','🐷','💶','🪙','💼','🏧','💰'].map(e => `<button class="chip" onclick="$('#aIc').value='${e}'">${e}</button>`).join('')}</div>
     <label>Trenutno stanje (€)<input id="aBal" class="amount" inputmode="decimal" value="${cur}" data-init="${cur}"></label>
-    <label>Na početku dana<input id="aDate" type="date" value="${today}" data-init="${today}"></label>
-    <p class="muted small">Upiši koliko ti piše u banci (ili koliko imaš u novčaniku). Unosi s tim datumom i kasnije mijenjaju stanje. Ako mijenjaš samo naziv, stanje ne diraj.</p>
+    <label>Prati unose od<input id="aDate" type="date" value="${today}" data-init="${today}"></label>
+    <p class="muted small">Upiši koliko ti sada piše u banci (ili koliko imaš u novčaniku) i stanje će biti točno to. Unosi koje dodaš poslije ga mijenjaju, osim onih s datumom prije „Prati unose od”. Ako mijenjaš samo naziv, stanje ne diraj.</p>
     ${partner ? `<label class="switch"><input type="checkbox" id="aSh" ${a.shared ? 'checked' : ''}> 👫 Zajednički račun s ${esc(partner.display_name)} (vidite ga i koristite oboje)</label>` : ''}
     <button class="btn primary" onclick="saveAcc(${id ? `'${id}'` : 'null'})">Spremi</button>
     ${id && activeAccs().length > 1 ? `<button class="btn danger" onclick="archiveAcc('${id}')">Sakrij račun</button>` : ''}`);
@@ -1825,7 +1828,20 @@ async function saveAcc(id){
   const row = { name, icon };
   const sh = $('#aSh'); if (sh) row.shared = sh.checked;
   const changed = raw !== $('#aBal').dataset.init || $('#aDate').value !== $('#aDate').dataset.init;
-  if (!id || changed) { row.opening_balance = neg ? -v : v; row.opening_date = $('#aDate').value || iso(new Date()); }
+  if (!id || changed) {
+    const date = $('#aDate').value || iso(new Date());
+    let open = neg ? -v : v;
+    if (id) {
+      // unosi od tog dana do danas već su u stanju koje piše u banci – oduzmi ih, da stanje ostane točno upisani iznos
+      const a = accById(id), keep = [a.opening_balance, a.opening_date];
+      a.opening_balance = 0; a.opening_date = date;
+      const ok = await loadAccBal(), eff = accBals[id] || 0;
+      [a.opening_balance, a.opening_date] = keep;
+      if (!ok) { await loadAccBal(); return toast('Nema veze s bazom – pokušaj ponovno'); }
+      open = Math.round((open - eff) * 100) / 100;
+    }
+    row.opening_balance = open; row.opening_date = date;
+  }
   const { error } = id ? await sb.from('accounts').update(row).eq('id', id) : await sb.from('accounts').insert({ ...row, sort: 100 });
   if (error) return toast(/shared|column|schema/i.test(error.message) ? 'Za zajednički račun prvo pokreni supabase-v11-zajednicki.sql u Supabaseu' : error.message);
   closeSheet(); await loadAccounts(); await loadAccBal(); render(); toast('Spremljeno');
