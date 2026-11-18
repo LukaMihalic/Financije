@@ -109,6 +109,22 @@ body{background:var(--bg)}
 .fav-row{margin:0 0 10px}.fav-row .chip b{font-weight:600}
 /* grafovi */
 :root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--sx:#a8aba9}
+/* ---------- božićni ugođaj ---------- */
+:root.xmas{--acc:#17663a;--acc2:#dcfce7}
+@media (prefers-color-scheme:dark){:root.xmas:not([data-theme="light"]){--acc:#4ade80;--onacc:#052e16;--acc2:#14532d}}
+:root.xmas[data-theme="dark"]{--acc:#4ade80;--onacc:#052e16;--acc2:#14532d}
+#snow{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:8}
+#garland{display:none;position:absolute;left:8px;right:8px;top:100%;margin-top:-6px;height:30px;pointer-events:none;color:var(--muted)}
+:root.xmas #garland{display:block}
+#garland svg{display:block;overflow:visible}
+.bulb{animation:twinkle 2.6s ease-in-out infinite;filter:drop-shadow(0 0 3px currentColor)}
+@keyframes twinkle{0%,100%{opacity:1}50%{opacity:.3}}
+:root.xmas #app{padding-top:18px}
+:root.xmas #fab::after{content:'';position:absolute;left:4px;top:-23px;width:46px;height:38px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 38'%3E%3Cpath d='M6 29C8 15 20 4 33 6c4 1 7 4 7 9-4 0-7 4-6 8l2 6z' fill='%23d62828'/%3E%3Cpath d='M20 10c5-3 10-4 13-4' stroke='%23ff6b6b' stroke-width='2' stroke-linecap='round' fill='none' opacity='.6'/%3E%3Crect x='3' y='26' width='37' height='10' rx='5' fill='%23fff' stroke='%23d9dee2'/%3E%3Ccircle cx='40' cy='15' r='5.5' fill='%23fff' stroke='%23d9dee2'/%3E%3C/svg%3E") no-repeat center/contain;transform:rotate(14deg);pointer-events:none}
+.xmas-card{display:flex;align-items:center;gap:14px;color:#fff;background:radial-gradient(circle at 30% 35%,rgba(255,255,255,.22) 0 1.4px,transparent 1.9px) 0 0/31px 27px,radial-gradient(circle at 70% 75%,rgba(255,255,255,.14) 0 1px,transparent 1.5px) 0 0/23px 21px,linear-gradient(135deg,#14532d,#1d7a46) #14532d;box-shadow:none}
+.xmas-card .xc-ic{font-size:34px;line-height:1;flex:none}
+.xmas-card b{display:block;font-size:17px}.xmas-card span{display:block;font-size:13px;opacity:.88;margin-top:2px}
+@media (prefers-reduced-motion:reduce){.bulb{animation:none}}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--sx:#5f6866}}
 :root[data-theme="dark"]{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--sx:#5f6866}
 .seg-sm button{padding:7px 4px;font-size:14px}
@@ -187,6 +203,7 @@ label.btn{text-align:center;font-size:16px}
     <div id="monthLabel"></div>
     <button id="nextM" onclick="changeMonth(1)" aria-label="Sljedeći mjesec">›</button>
   </div>
+  <div id="garland" aria-hidden="true"></div>
 </div>
 <div id="app"><p class="center muted">Učitavam…</p></div>
 <nav id="nav" hidden>
@@ -218,7 +235,121 @@ function chooseTheme(){
   openSheet(`<h2>🎨 Tema</h2>${[['system', '📱 Kao na mobitelu'], ['light', '☀️ Svijetla'], ['dark', '🌙 Tamna']].map(([k, l]) =>
     `<button class="btn ${theme === k ? 'primary' : ''}" onclick="setTheme('${k}')">${l}</button>`).join('')}`);
 }
-function setTheme(t){ theme = t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); closeSheet(); render(); }
+function setTheme(t){ theme = t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); applyXmas(); closeSheet(); render(); }
+
+// ---------- božićni ugođaj: snijeg, lampice, kapa na gumbu + ----------
+// automatski od prve adventske nedjelje do Sveta tri kralja (6. 1.), ili ručno uključen/isključen
+let xmasMode = 'auto';
+try { xmasMode = localStorage.getItem('xmas') || 'auto'; } catch (e) {}
+function adventStart(y){ const d = new Date(y, 11, 24); d.setDate(24 - d.getDay() - 21); return d; }
+function xmasOn(){
+  if (xmasMode === 'on') return true;
+  if (xmasMode === 'off') return false;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  return now >= adventStart(now.getFullYear()) || (now.getMonth() === 0 && now.getDate() <= 6);
+}
+const isDarkNow = () => theme === 'dark' || (theme !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+const reducedMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+let snow = null;
+function snowSprite(dark){
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const x = c.getContext('2d'), g = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+  if (dark) { g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.35, 'rgba(255,255,255,.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); }
+  else { g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.18, 'rgba(214,227,240,1)'); g.addColorStop(.42, 'rgba(160,186,212,.75)'); g.addColorStop(1, 'rgba(160,186,212,0)'); }
+  x.fillStyle = g; x.fillRect(0, 0, 32, 32); return c;
+}
+function sizeSnow(){
+  if (!snow) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
+  snow.W = W; snow.H = H; snow.cv.width = W * dpr; snow.cv.height = H * dpr; snow.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const n = Math.round(Math.min(90, Math.max(30, W * H / 7000)));
+  snow.flakes = Array.from({ length: n }, () => newFlake(W, H, true));
+}
+function newFlake(W, H, anywhere){
+  const r = 1.2 + Math.random() * Math.random() * 3.2;
+  return { x: Math.random() * W, y: anywhere ? Math.random() * H : -10 - Math.random() * 40, r, vy: 14 + r * 13 + Math.random() * 10,
+    sw: 6 + Math.random() * 18, ph: Math.random() * 6.28, fr: .4 + Math.random() * .9, o: .55 + Math.random() * .45 };
+}
+function snowTick(t){
+  snow.raf = requestAnimationFrame(snowTick);
+  if (t - snow.last < 30) return;               // ~30 sličica u sekundi štedi bateriju
+  const dt = Math.min((t - (snow.last || t)) / 1000, .1); snow.last = t;
+  const { ctx, W, H, sprite } = snow; ctx.clearRect(0, 0, W, H);
+  for (const f of snow.flakes) {
+    f.y += f.vy * dt; f.ph += f.fr * dt;
+    if (f.y - f.r * 2 > H) Object.assign(f, newFlake(W, H, false));
+    ctx.globalAlpha = f.o; ctx.drawImage(sprite, f.x + Math.sin(f.ph) * f.sw - f.r * 2, f.y - f.r * 2, f.r * 4, f.r * 4);
+  }
+}
+function startSnow(){
+  if (reducedMotion()) return stopSnow();
+  if (!snow) {
+    const cv = document.createElement('canvas'); cv.id = 'snow'; cv.setAttribute('aria-hidden', 'true'); document.body.appendChild(cv);
+    snow = { cv, ctx: cv.getContext('2d'), raf: 0, last: 0, flakes: [] };
+    addEventListener('resize', () => { if (snow.raf) sizeSnow(); });
+  }
+  snow.sprite = snowSprite(isDarkNow());
+  snow.cv.hidden = false;
+  if (!snow.raf) { sizeSnow(); snow.last = 0; snow.raf = requestAnimationFrame(snowTick); }
+}
+function stopSnow(){ if (!snow) return; cancelAnimationFrame(snow.raf); snow.raf = 0; snow.cv.hidden = true; }
+function drawGarland(force){
+  const g = document.getElementById('garland'); if (!g) return;
+  if (!xmasOn()) { g.innerHTML = ''; g.dataset.w = ''; return; }
+  const w = Math.round(g.getBoundingClientRect().width);
+  if (!w || (!force && String(w) === g.dataset.w)) return;
+  g.dataset.w = w;
+  const n = Math.max(3, Math.round(w / 72)), seg = w / n, sag = 10, cols = ['#ef4444', '#facc15', '#22c55e', '#3b82f6', '#f472b6'];
+  let d = 'M0 3', bulbs = '', k = 0;
+  const q = (a, b, c, t) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * c;
+  for (let i = 0; i < n; i++) {
+    const x1 = i * seg, x2 = x1 + seg, cx = x1 + seg / 2, cy = 3 + sag * 2;
+    d += ` Q${cx.toFixed(1)} ${cy} ${x2.toFixed(1)} 3`;
+    for (const t of [.2, .5, .8]) {
+      const bx = q(x1, cx, x2, t), by = q(3, cy, 3, t), c = cols[k++ % cols.length];
+      bulbs += `<g class="bulb" style="color:${c};animation-delay:-${(Math.random() * 2.6).toFixed(2)}s"><rect x="${(bx - 1.7).toFixed(1)}" y="${by.toFixed(1)}" width="3.4" height="3.2" rx=".7" fill="#4b5563"/><ellipse cx="${bx.toFixed(1)}" cy="${(by + 7.4).toFixed(1)}" rx="3.3" ry="4.6" fill="${c}"/></g>`;
+    }
+  }
+  g.innerHTML = `<svg width="${w}" height="30" viewBox="0 0 ${w} 30"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".6"/>${bulbs}</svg>`;
+}
+function applyXmas(){
+  const on = xmasOn();
+  document.documentElement.classList.toggle('xmas', on);
+  if (on) startSnow(); else stopSnow();
+  drawGarland(true);
+}
+applyXmas();
+if (window.ResizeObserver) new ResizeObserver(() => drawGarland()).observe(document.getElementById('topbar'));
+if (window.matchMedia) {
+  const mm = (q, f) => { const m = matchMedia(q); m.addEventListener ? m.addEventListener('change', f) : m.addListener && m.addListener(f); };
+  mm('(prefers-color-scheme: dark)', () => { if (xmasOn()) startSnow(); });
+  mm('(prefers-reduced-motion: reduce)', () => applyXmas());
+}
+// novi dan (npr. aplikacija otvorena preko ponoći) – provjeri treba li uključiti ili isključiti ugođaj
+document.addEventListener('visibilitychange', () => { if (!document.hidden && xmasOn() !== document.documentElement.classList.contains('xmas')) applyXmas(); });
+const XMAS_LABEL = { auto: 'automatski', on: 'uključen', off: 'isključen' };
+function chooseXmas(){
+  openSheet(`<h2>🎄 Božićni ugođaj</h2>
+    <p class="muted small">Snijeg koji pada, lampice ispod naslova i Djedova kapa na gumbu ＋.</p>
+    ${[['on', '🎄 Uključen'], ['auto', '📅 Automatski (od Adventa do Sveta tri kralja)'], ['off', '🚫 Isključen']].map(([k, l]) =>
+      `<button class="btn ${xmasMode === k ? 'primary' : ''}" onclick="setXmas('${k}')">${l}</button>`).join('')}
+    ${reducedMotion() ? '<p class="muted small">Na mobitelu je uključeno smanjenje animacija, pa snijeg ne pada (lampice i kapa ostaju).</p>' : ''}`);
+}
+function setXmas(m){ xmasMode = m; try { localStorage.setItem('xmas', m); } catch (e) {} applyXmas(); closeSheet(); render(); }
+function xmasCard(){
+  if (!xmasOn()) return '';
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  const days = x => Math.round((x - now) / 864e5), dn = n => n % 10 === 1 && n % 100 !== 11 ? 'dan' : 'dana';
+  let ic = '🎄', t, s = 'Poklone označi oznakom „pokloni” pa ćeš pod Oznakama vidjeti koliko su ukupno koštali. 🎁', go_ = "go('tags')";
+  if (m === 11 && d === 24) { t = 'Sretan Badnjak! Sutra je Božić'; s = 'Uživaj u blagdanima. ⭐'; go_ = ''; }
+  else if (m === 11 && (d === 25 || d === 26)) { t = 'Sretan Božić!'; s = 'Uživaj u blagdanima. ⭐'; go_ = ''; }
+  else if (m === 11 && d === 31) { ic = '🥂'; t = 'Sutra je Nova godina!'; s = 'U Statistici pogledaj kako ti je prošla godina. 📈'; go_ = "go('stat')"; }
+  else if (m === 11 && d > 26) { ic = '✨'; const n = days(new Date(y + 1, 0, 1)); t = `Još ${n} ${dn(n)} do Nove godine`; s = 'U Statistici pogledaj kako ti je prošla godina. 📈'; go_ = "go('stat')"; }
+  else if (m === 0 && d <= 6) { ic = '✨'; t = 'Sretna nova godina!'; s = 'Neka bude puna uštede. 🐷'; go_ = ''; }
+  else { let x = new Date(y, 11, 25); if (x < now) x = new Date(y + 1, 11, 25); const n = days(x); t = `Još ${n} ${dn(n)} do Božića`; }
+  return `<div class="card xmas-card${go_ ? ' click' : ''}"${go_ ? ` onclick="${go_}"` : ''}><span class="xc-ic">${ic}</span><div><b>${t}</b><span>${s}</span></div></div>`;
+}
 // =====================================================================
 //  OVDJE ZALIJEPI PODATKE IZ SVOG SUPABASE PROJEKTA "Financije"
 //  (Project Settings -> API: Project URL i anon/public key)
@@ -227,7 +358,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v14.2';
+const VERSION = 'v15';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
@@ -2078,7 +2209,7 @@ function renderPregled(){
   const by = spentByCat();
   const rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
   const max = rows.length ? rows[0][1] : 1;
-  let h = '';
+  let h = xmasCard();
   h += renderAccountsCard();
   if (favs.length) h += `<div class="card"><div class="muted small" style="margin-bottom:8px">⭐ Brzi unos</div>${favChips()}</div>`;
   h += `<div class="summary">
@@ -2241,6 +2372,7 @@ function renderMore(){
     <div class="row-btn" onclick="openImport()"><span>⬆️ Uvoz izvoda (PBZ, Revolut…)</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="exportCsv()"><span>⬇️ Izvoz u CSV (Excel)</span></div>
     <div class="row-btn" onclick="chooseTheme()"><span>🎨 Tema</span><span class="muted">${{ system: 'kao na mobitelu', light: 'svijetla', dark: 'tamna' }[theme]} ›</span></div>
+    <div class="row-btn" onclick="chooseXmas()"><span>🎄 Božićni ugođaj</span><span class="muted">${XMAS_LABEL[xmasMode]}${xmasMode === 'auto' && xmasOn() ? ' (sad uključen)' : ''} ›</span></div>
     <div class="row-btn" onclick="showNewPassword()"><span>🔑 Promijeni lozinku</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="showDiag()"><span>🔧 Dijagnostika</span><span class="muted">›</span></div>
     <div class="row-btn" onclick="logout()"><span>🚪 Odjava</span></div></div>
