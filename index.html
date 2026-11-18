@@ -238,15 +238,14 @@ function chooseTheme(){
 function setTheme(t){ theme = t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); applyXmas(); closeSheet(); render(); }
 
 // ---------- božićni ugođaj: snijeg, lampice, kapa na gumbu + ----------
-// automatski od prve adventske nedjelje do Sveta tri kralja (6. 1.), ili ručno uključen/isključen
+// automatski od 18. studenog do Sveta tri kralja (6. 1.), ili ručno uključen/isključen
 let xmasMode = 'auto';
 try { xmasMode = localStorage.getItem('xmas') || 'auto'; } catch (e) {}
-function adventStart(y){ const d = new Date(y, 11, 24); d.setDate(24 - d.getDay() - 21); return d; }
 function xmasOn(){
   if (xmasMode === 'on') return true;
   if (xmasMode === 'off') return false;
   const now = new Date(); now.setHours(0, 0, 0, 0);
-  return now >= adventStart(now.getFullYear()) || (now.getMonth() === 0 && now.getDate() <= 6);
+  return now >= new Date(now.getFullYear(), 10, 18) || (now.getMonth() === 0 && now.getDate() <= 6);
 }
 const isDarkNow = () => theme === 'dark' || (theme !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
 const reducedMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -331,7 +330,7 @@ const XMAS_LABEL = { auto: 'automatski', on: 'uključen', off: 'isključen' };
 function chooseXmas(){
   openSheet(`<h2>🎄 Božićni ugođaj</h2>
     <p class="muted small">Snijeg koji pada, lampice ispod naslova i Djedova kapa na gumbu ＋.</p>
-    ${[['on', '🎄 Uključen'], ['auto', '📅 Automatski (od Adventa do Sveta tri kralja)'], ['off', '🚫 Isključen']].map(([k, l]) =>
+    ${[['on', '🎄 Uključen'], ['auto', '📅 Automatski (od 18. 11. do Sveta tri kralja)'], ['off', '🚫 Isključen']].map(([k, l]) =>
       `<button class="btn ${xmasMode === k ? 'primary' : ''}" onclick="setXmas('${k}')">${l}</button>`).join('')}
     ${reducedMotion() ? '<p class="muted small">Na mobitelu je uključeno smanjenje animacija, pa snijeg ne pada (lampice i kapa ostaju).</p>' : ''}`);
 }
@@ -358,7 +357,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v15';
+const VERSION = 'v15.1';
 const MONTHS = ['Siječanj','Veljača','Ožujak','Travanj','Svibanj','Lipanj','Srpanj','Kolovoz','Rujan','Listopad','Studeni','Prosinac'];
 const DAYS = ['Nedjelja','Ponedjeljak','Utorak','Srijeda','Četvrtak','Petak','Subota'];
 const eur = new Intl.NumberFormat('hr-HR', {style:'currency', currency:'EUR'});
