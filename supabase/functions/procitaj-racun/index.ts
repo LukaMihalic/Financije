@@ -1,12 +1,15 @@
 // =====================================================================
 //  Financije – Supabase Edge Function "procitaj-racun"
-//  Prima sliku ili PDF računa iz aplikacije, šalje ga Claudeu i vraća trgovinu,
-//  datum, ukupni iznos i stavke s prijedlogom kategorija.
+//  1) Prima sliku ili PDF računa iz aplikacije, šalje ga Claudeu i vraća trgovinu,
+//     datum, ukupni iznos i stavke s prijedlogom kategorija.
+//  2) mode: "chat" – razgovor "Pitaj Claudea" u aplikaciji: prosljeđuje poruke Claudeu
+//     (alate za čitanje unosa izvršava sama aplikacija, s pravima prijavljenog korisnika).
 //  Potrebna tajna: ANTHROPIC_API_KEY (Edge Functions -> Secrets)
 // =====================================================================
 
 const MODEL = "claude-haiku-5-5"; // jeftin i brz; za teže račune: "claude-sonnet-5-5"
 const DAILY_LIMIT = 40;           // najviše računa po korisniku u 24 sata
+const CHAT_LIMIT = 200;           // najviše poziva iz razgovora po korisniku u 24 sata (jedno pitanje ≈ 1–3 poziva)
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -29,20 +32,48 @@ Deno.serve(async (req) => {
     const who = await fetch(`${url}/auth/v1/user`, { headers: { Authorization: auth, apikey } });
     if (!who.ok) return json({ error: "Nisi prijavljen." }, 401);
 
-    // 2) dnevno ograničenje (štiti tvoj API kredit)
+    const body = await req.json();
+    const chat = body && body.mode === "chat";
+
+    // 2) dnevno ograničenje (štiti tvoj API kredit) – računi i pitanja broje se odvojeno (stupac kind)
     const h = { Authorization: auth, apikey, "Content-Type": "application/json" };
     const since = new Date(Date.now() - 864e5).toISOString();
-    const cnt = await fetch(`${url}/rest/v1/ai_usage?select=id&created_at=gte.${since}`, {
+    const kind = chat ? "pitanje" : "racun";
+    const count = (extra) => fetch(`${url}/rest/v1/ai_usage?select=id&created_at=gte.${since}${extra}`, {
       headers: { ...h, Prefer: "count=exact", Range: "0-0" },
     });
+    let cnt = await count(`&kind=eq.${kind}`);
+    const hasKind = cnt.ok;                       // stara baza bez stupca kind: računi kao prije, pitanja bez brojanja
+    if (!hasKind && !chat) cnt = await count("");
     if (cnt.ok) {
       const used = parseInt((cnt.headers.get("content-range") || "*/0").split("/")[1] || "0");
-      if (used >= DAILY_LIMIT) return json({ error: `Potrošeno je dnevno ograničenje od ${DAILY_LIMIT} računa.` }, 429);
-      await fetch(`${url}/rest/v1/ai_usage`, { method: "POST", headers: h, body: "{}" });
+      if (!chat && used >= DAILY_LIMIT) return json({ error: `Potrošeno je dnevno ograničenje od ${DAILY_LIMIT} računa.` }, 429);
+      if (chat && used >= CHAT_LIMIT) return json({ error: "Potrošeno je dnevno ograničenje pitanja. Probaj sutra." }, 429);
+      await fetch(`${url}/rest/v1/ai_usage`, { method: "POST", headers: h, body: hasKind ? JSON.stringify({ kind }) : "{}" });
     }
 
-    // 3) slika i kategorije iz aplikacije
-    const { image, media_type, categories } = await req.json();
+    // 3a) razgovor "Pitaj Claudea"
+    if (chat) {
+      const { system, messages, tools } = body;
+      if (!Array.isArray(messages) || !messages.length || JSON.stringify(body).length > 250000) return json({ error: "Neispravan upit." }, 400);
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 1500,
+          system: String(system || "").slice(0, 60000),
+          messages,
+          ...(Array.isArray(tools) && tools.length ? { tools: tools.slice(0, 8) } : {}),
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) return json({ error: "Claude API: " + (d?.error?.message || r.status) }, 502);
+      return json({ content: d.content || [], stop_reason: d.stop_reason, usage: d.usage, model: MODEL });
+    }
+
+    // 3b) slika i kategorije iz aplikacije
+    const { image, media_type, categories } = body;
     if (!image) return json({ error: "Nema slike ni datoteke." }, 400);
     const isPdf = media_type === "application/pdf";
     const cats = Array.isArray(categories) && categories.length ? categories.slice(0, 60) : null;

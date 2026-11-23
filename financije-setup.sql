@@ -1,5 +1,5 @@
 -- =====================================================================
---  FINANCIJE – postavljanje baze u Supabaseu  (verzija 12)
+--  FINANCIJE – postavljanje baze u Supabaseu  (verzija 17)
 --  Pokreni CIJELU skriptu u: Supabase -> SQL Editor -> New query -> Run
 --  Sigurno ju je pokrenuti više puta – ništa se ne briše i ne duplicira.
 --  Usput napravi profil i kategorije za već registrirane korisnike.
@@ -342,6 +342,7 @@ create table if not exists public.ai_usage (
   user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+alter table public.ai_usage add column if not exists kind text not null default 'racun';  -- racun / pitanje
 alter table public.ai_usage enable row level security;
 drop policy if exists ai_usage_all on public.ai_usage;
 create policy ai_usage_all on public.ai_usage for all to authenticated
