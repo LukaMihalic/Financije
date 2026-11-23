@@ -9,7 +9,9 @@
 
 const MODEL = "claude-haiku-5-5"; // jeftin i brz; za teže račune: "claude-sonnet-5-5"
 const DAILY_LIMIT = 40;           // najviše računa po korisniku u 24 sata
-const CHAT_LIMIT = 200;           // najviše poziva iz razgovora po korisniku u 24 sata (jedno pitanje ≈ 1–3 poziva)
+const QUESTION_LIMIT = 15;        // najviše pitanja u razgovoru po korisniku u 24 sata
+const TOOL_CALL_LIMIT = 120;      // dodatni pozivi unutar pitanja (kad Claude čita unose) – zaštita od zloupotrebe
+// Tko upiše vlastiti Claude API ključ u aplikaciji (Postavke i ostalo), troši svoj kredit i nema ograničenja.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,8 +25,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const url = Deno.env.get("SUPABASE_URL");
-    const key = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!key) return json({ error: "U Supabaseu nedostaje tajna ANTHROPIC_API_KEY." }, 500);
+    const serverKey = Deno.env.get("ANTHROPIC_API_KEY");
 
     // 1) samo prijavljeni korisnici aplikacije
     const auth = req.headers.get("Authorization") || "";
@@ -34,22 +35,31 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const chat = body && body.mode === "chat";
+    const userKey = typeof body?.user_key === "string" && /^sk-ant-[\w-]{20,}$/.test(body.user_key.trim()) ? body.user_key.trim() : null;
+    const key = userKey || serverKey;
+    if (!key) return json({ error: "U Supabaseu nedostaje tajna ANTHROPIC_API_KEY." }, 500);
 
-    // 2) dnevno ograničenje (štiti tvoj API kredit) – računi i pitanja broje se odvojeno (stupac kind)
+    // 2) dnevno ograničenje (štiti tvoj API kredit) – računi, pitanja i dodatni pozivi broje se odvojeno (stupac kind)
     const h = { Authorization: auth, apikey, "Content-Type": "application/json" };
     const since = new Date(Date.now() - 864e5).toISOString();
-    const kind = chat ? "pitanje" : "racun";
+    const msgs = Array.isArray(body?.messages) ? body.messages : [];
+    const last = msgs[msgs.length - 1];
+    const isFollowUp = chat && last && Array.isArray(last.content) && last.content.some((b) => b && b.type === "tool_result");
+    const kind = !chat ? "racun" : isFollowUp ? "alat" : "pitanje";
     const count = (extra) => fetch(`${url}/rest/v1/ai_usage?select=id&created_at=gte.${since}${extra}`, {
       headers: { ...h, Prefer: "count=exact", Range: "0-0" },
     });
-    let cnt = await count(`&kind=eq.${kind}`);
-    const hasKind = cnt.ok;                       // stara baza bez stupca kind: računi kao prije, pitanja bez brojanja
-    if (!hasKind && !chat) cnt = await count("");
-    if (cnt.ok) {
-      const used = parseInt((cnt.headers.get("content-range") || "*/0").split("/")[1] || "0");
-      if (!chat && used >= DAILY_LIMIT) return json({ error: `Potrošeno je dnevno ograničenje od ${DAILY_LIMIT} računa.` }, 429);
-      if (chat && used >= CHAT_LIMIT) return json({ error: "Potrošeno je dnevno ograničenje pitanja. Probaj sutra." }, 429);
-      await fetch(`${url}/rest/v1/ai_usage`, { method: "POST", headers: h, body: hasKind ? JSON.stringify({ kind }) : "{}" });
+    if (!userKey) {
+      let cnt = await count(`&kind=eq.${kind}`);
+      const hasKind = cnt.ok;                     // stara baza bez stupca kind: računi kao prije, pitanja bez brojanja
+      if (!hasKind && !chat) cnt = await count("");
+      if (cnt.ok) {
+        const used = parseInt((cnt.headers.get("content-range") || "*/0").split("/")[1] || "0");
+        if (kind === "racun" && used >= DAILY_LIMIT) return json({ error: `Potrošeno je dnevno ograničenje od ${DAILY_LIMIT} računa.`, limit: true }, 429);
+        if (kind === "pitanje" && used >= QUESTION_LIMIT) return json({ error: `Potrošeno je dnevno ograničenje od ${QUESTION_LIMIT} pitanja.`, limit: true }, 429);
+        if (kind === "alat" && used >= TOOL_CALL_LIMIT) return json({ error: `Potrošeno je dnevno ograničenje od ${QUESTION_LIMIT} pitanja.`, limit: true }, 429);
+        await fetch(`${url}/rest/v1/ai_usage`, { method: "POST", headers: h, body: hasKind ? JSON.stringify({ kind }) : "{}" });
+      }
     }
 
     // 3a) razgovor "Pitaj Claudea"
@@ -68,7 +78,7 @@ Deno.serve(async (req) => {
         }),
       });
       const d = await r.json();
-      if (!r.ok) return json({ error: "Claude API: " + (d?.error?.message || r.status) }, 502);
+      if (!r.ok) return json({ error: (userKey ? "Tvoj Claude ključ: " : "Claude API: ") + (d?.error?.message || r.status) }, 502);
       return json({ content: d.content || [], stop_reason: d.stop_reason, usage: d.usage, model: MODEL });
     }
 
@@ -136,7 +146,7 @@ Deno.serve(async (req) => {
       }),
     });
     const d = await r.json();
-    if (!r.ok) return json({ error: "Claude API: " + (d?.error?.message || r.status) }, 502);
+    if (!r.ok) return json({ error: (userKey ? "Tvoj Claude ključ: " : "Claude API: ") + (d?.error?.message || r.status) }, 502);
     const t = (d.content || []).find((b) => b.type === "tool_use");
     if (!t) return json({ error: "Claude nije vratio podatke s računa." }, 502);
     return json({ ...t.input, model: MODEL, usage: d.usage });
