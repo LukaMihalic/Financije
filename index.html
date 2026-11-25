@@ -830,7 +830,8 @@ const EN = {
 "Za više pitanja možeš upisati vlastiti Claude ključ – tada plaćaš svoj kredit.": "For more questions you can enter your own Claude key – then your own credit is used.",
 "upisan": "added",
 "nije upisan": "not added",
-"Potrošeno je dnevno ograničenje od 15 pitanja.": "You've used today's limit of 15 questions."
+"Potrošeno je dnevno ograničenje od 15 pitanja.": "You've used today's limit of 15 questions.",
+"½ u tvojoj statistici": "½ in your stats"
 };
 </script>
 <script>
@@ -998,7 +999,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v17.1';
+const VERSION = 'v17.2';
 const MONTHS = [_t("Siječanj"),_t("Veljača"),_t("Ožujak"),_t("Travanj"),_t("Svibanj"),_t("Lipanj"),_t("Srpanj"),_t("Kolovoz"),_t("Rujan"),_t("Listopad"),_t("Studeni"),_t("Prosinac")];
 const DAYS = [_t("Nedjelja"),_t("Ponedjeljak"),_t("Utorak"),_t("Srijeda"),_t("Četvrtak"),_t("Petak"),_t("Subota")];
 const eur = new Intl.NumberFormat(LANG === 'en' ? 'en-IE' : 'hr-HR', {style:'currency', currency:'EUR'});
@@ -1256,9 +1257,9 @@ async function loadHist(){
   const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
   const key = iso(start);
   if (hist && hist.key === key) return;
-  const { data } = await fetchAll(() => sb.from('transactions').select('id,date,kind,amount,category_id')
-    .eq('user_id', user.id).in('kind', ['income', 'expense']).gte('date', key).lte('date', iso(end)).order('id'));
-  hist = { key, rows: data || [] };
+  const { data } = await fetchAll(() => statQuery(sb.from('transactions').select('id,user_id,account_id,date,kind,amount,category_id'))
+    .in('kind', ['income', 'expense']).gte('date', key).lte('date', iso(end)).order('id'));
+  hist = { key, rows: statRows(data) };
 }
 function needHist(){
   const key = iso(new Date(month.getFullYear(), month.getMonth() - 11, 1));
@@ -1584,7 +1585,7 @@ function txSource(){
 function renderTxRows(list){
   if (!list) return ('<div class="card"><p class="muted">' + _t("Učitavam…") + '</p></div>');
   let h = '';
-  const mineL = list.filter(t => t.user_id === user.id);
+  const mineL = statRows(list);
   if (fltActive() || flt.scope !== 'mjesec') {
     const ex = mineL.filter(t => t.kind === 'expense').reduce((s, t) => s + +t.amount, 0);
     const inc = mineL.filter(t => t.kind === 'income').reduce((s, t) => s + +t.amount, 0);
@@ -1649,9 +1650,9 @@ function rmTag(i){ syncDraft(); draft.tags.splice(i, 1); showTxSheet(); }
 // ---- pregled oznaka
 let tagStats = null;
 async function loadTagStats(){
-  const { data } = await fetchAll(() => sb.from('transactions').select('id,kind,amount,tags,date').eq('user_id', user.id).not('tags', 'is', null).order('id'));
+  const { data } = await fetchAll(() => statQuery(sb.from('transactions').select('id,user_id,account_id,kind,amount,tags,date')).not('tags', 'is', null).order('id'));
   const m = {};
-  for (const t of data || []) for (const g of t.tags || []) {
+  for (const t of statRows(data)) for (const g of t.tags || []) {
     const x = m[g] || (m[g] = { tag: g, n: 0, exp: 0, inc: 0, from: t.date, to: t.date });
     x.n++; if (t.kind === 'expense') x.exp += +t.amount; else if (t.kind === 'income') x.inc += +t.amount;
     if (t.date < x.from) x.from = t.date; if (t.date > x.to) x.to = t.date;
@@ -2225,9 +2226,9 @@ let yearData = null;
 async function loadYear(){
   const Y = month.getFullYear();
   if (yearData && yearData.Y === Y) return;
-  const { data } = await fetchAll(() => sb.from('transactions').select('id,date,kind,amount,category_id').eq('user_id', user.id)
+  const { data } = await fetchAll(() => statQuery(sb.from('transactions').select('id,user_id,account_id,date,kind,amount,category_id'))
     .in('kind', ['income', 'expense']).gte('date', `${Y - 1}-01-01`).lte('date', `${Y}-12-31`).order('id'));
-  yearData = { Y, rows: data || [] };
+  yearData = { Y, rows: statRows(data) };
 }
 async function changeYear(d){ month = new Date(month.getFullYear() + d, month.getMonth(), 1); await loadMonth(); render(); }
 function renderYear(){
@@ -2687,7 +2688,25 @@ async function runRecurring(){
 }
 
 // ---------------- IZRAČUNI ----------------
-const mine = () => txs.filter(t => t.user_id === user.id);
+// Zajednički račun u statistici: troškovi i prihodi sa zajedničkog računa ulaze pola-pola
+// (pola meni, pola partneru) – bez obzira tko ih je upisao. Prijenosi ne ulaze u statistiku.
+const jointIds = () => accounts.filter(isJoint).map(a => a.id);
+const isJointTx = t => (t.kind === 'expense' || t.kind === 'income') && !!t.account_id && isJoint(accById(t.account_id));
+// partnerova kategorija → moja kategorija istog naziva, da se "Hrana" i "Hrana" ne prikazuju odvojeno
+function myCatId(id){
+  const c = catById(id); if (!c || c.user_id === user.id) return id;
+  const n = nrm(c._hr || c.name), m = cats.find(x => x.user_id === user.id && x.kind === c.kind && nrm(x._hr || x.name) === n);
+  return m ? m.id : id;
+}
+// unos onako kako ulazi u moju statistiku (null = ne ulazi)
+function statRow(t){
+  if (isJointTx(t)) return { ...t, amount: r2(+t.amount / 2), full: +t.amount, category_id: myCatId(t.category_id), half: true };
+  return t.user_id === user.id ? t : null;
+}
+const statRows = list => (list || []).map(statRow).filter(Boolean);
+// upit za statistiku: moji unosi + svi unosi sa zajedničkih računa
+const statQuery = q => { const j = jointIds(); return j.length ? q.or(`user_id.eq.${user.id},account_id.in.(${j.join(',')})`) : q.eq('user_id', user.id); };
+const mine = () => statRows(txs);
 function totals(){
   let inc = 0, exp = 0;
   for (const t of mine()) { if (t.kind === 'income') inc += +t.amount; else if (t.kind === 'expense') exp += +t.amount; }
@@ -2762,6 +2781,7 @@ BRZI UNOSI: gumbi za česte troškove (kava, karta) koji se spremaju jednim dodi
 OZNAKE: npr. #ljubljana na smještaju, hrani i prijevozu – pokazuje ukupni trošak po oznaci.
 KATEGORIJE: dodavanje, uređivanje, brisanje kategorija troškova i prihoda s emoji ikonom.
 UVOZ IZVODA: CSV ili Excel izvod iz PBZ-a ili Revoluta („📂 Odaberi datoteku”); aplikacija prepozna stupce, duplikate, bankomate i nadoplate (kao prijenose), predloži kategorije i zapamti tvoje ispravke. Revolut: račun → Statements → Excel/CSV; PBZ: PBZ365 promet po računu → izvoz.
+ZAJEDNIČKI RAČUN U STATISTICI: troškovi i prihodi sa zajedničkog računa ulaze u statistiku, budžet i Pregled pola-pola – pola korisniku, pola partneru, bez obzira tko ih je upisao (u popisu unosa piše „½ u tvojoj statistici”).
 PARTNER: povezivanje kodom (Partner → tvoj kod pošalješ partneru ili upišeš njegov). Zajednički troškovi dijele se pola-pola i aplikacija računa tko kome duguje; „Podmirio sam” bilježi plaćanje. Privatni unosi i računi ostaju skriveni.
 POSTAVKE I OSTALO: ime, računi, kategorije, ponavljajući unosi, partner, uvoz izvoda, „⬇️ Izvoz u CSV (Excel)”, Jezik (hrvatski/engleski), Tema (kao na mobitelu/svijetla/tamna), Božićni ugođaj (snijeg, lampice; automatski od 18. 11. do 6. 1.), promjena lozinke, odjava, Dijagnostika (za rješavanje problema).
 INSTALACIJA: Android Chrome ⋮ → „Instaliraj aplikaciju”; iPhone Safari → Dijeli → „Dodaj na početni zaslon”. Nova verzija se učita sama kad otvoriš aplikaciju; bez interneta se otvori, ali ne sprema. Zaboravljena lozinka: na prijavi „Zaboravljena lozinka?”.
@@ -2812,8 +2832,9 @@ const r2 = v => Math.round(v * 100) / 100;
 async function aiRows(q){
   const today = iso(new Date());
   const od = /^\d{4}-\d{2}-\d{2}$/.test(q.od || '') ? q.od : '2000-01-01', dd = /^\d{4}-\d{2}-\d{2}$/.test(q.do || '') ? q.do : today;
-  const { data, error } = await fetchAll(() => sb.from('transactions').select('*').eq('user_id', user.id).gte('date', od).lte('date', dd).order('date', { ascending: false }));
+  const { data: raw, error } = await fetchAll(() => statQuery(sb.from('transactions').select('*')).gte('date', od).lte('date', dd).order('date', { ascending: false }));
   if (error) throw new Error(error.message);
+  const data = statRows(raw);
   const kind = q.vrsta === 'sve' ? null : AI_KIND[q.vrsta] || 'expense';
   const cq = nrm(q.kategorija), aq = nrm(q.racun), tq = nrm(q.oznaka).replace(/^#/, ''), sq = nrm(q.tekst);
   const catOk = t => { if (!cq) return true; const c = catById(t.category_id); return !!c && (nrm(c.name).includes(cq) || nrm(c._hr).includes(cq)); };
@@ -2822,13 +2843,13 @@ async function aiRows(q){
   const sqAmt = t => {
     if (nrm([t.note, t.merchant].join(' ')).includes(sq)) return +t.amount;
     const its = (Array.isArray(t.items) ? t.items : []).filter(i => i && nrm(i.name).includes(sq));
-    return its.length ? r2(its.reduce((a, i) => a + (+i.price || 0), 0)) : null;
+    return its.length ? r2(its.reduce((a, i) => a + (+i.price || 0), 0) * (t.half ? 0.5 : 1)) : null;
   };
   const rows = [];
   for (const t of data || []) {
     if (t.kind === 'settlement' || (kind && t.kind !== kind) || !catOk(t) || !accOk(t) || (tq && !(t.tags || []).some(g => nrm(g) === tq))) continue;
     const a = sq ? sqAmt(t) : +t.amount;
-    if (a != null) rows.push({ ...t, amount: a, _full: +t.amount });
+    if (a != null) rows.push({ ...t, amount: a, _full: t.full || +t.amount });
   }
   return { od, do: dd, rows };
 }
@@ -2854,7 +2875,7 @@ async function aiTool(name, q){
     const n = Math.min(Math.max(+q.broj || 15, 1), 40);
     const list = q.poredak === 'najveci' ? [...rows].sort((a, b) => b.amount - a.amount) : rows;
     return { razdoblje: `${od} – ${dd}`, ukupno_pronadeno: rows.length, unosi: list.slice(0, n).map(t => ({
-      datum: t.date, iznos: r2(+t.amount), ...(t._full !== +t.amount ? { iznos_cijelog_racuna: r2(t._full) } : {}), vrsta: t.kind, kategorija: aiCat(t), racun: aiAcc(t.account_id || primaryAcc()),
+      datum: t.date, iznos: r2(+t.amount), ...(t._full !== +t.amount ? { iznos_cijelog_unosa: r2(t._full) } : {}), ...(t.half ? { zajednicki_racun_pola: true } : {}), vrsta: t.kind, kategorija: aiCat(t), racun: aiAcc(t.account_id || primaryAcc()),
       ...(t.to_account_id ? { na_racun: aiAcc(t.to_account_id) } : {}), opis: [t.merchant, t.note].filter(Boolean).join(' · ') || undefined,
       oznake: t.tags && t.tags.length ? t.tags : undefined, zajednicki: t.is_shared || undefined,
       stavke: Array.isArray(t.items) && t.items.length ? t.items.slice(0, 25).map(i => `${i.name} ${i.price}`) : undefined })) };
@@ -2878,7 +2899,7 @@ async function aiSystem(){
 ${en ? 'Answer in ENGLISH, using the English names of menus and buttons from the list below. Format amounts like €1,234.56.' : 'Odgovaraj na hrvatskom. Iznose piši kao 1.234,56 €.'}
 Pravila:
 - Za SVAKO pitanje o iznosima korisnikovih unosa pozovi alat (zbroj_unosa ili popis_unosa). Nikad ne nagađaj i ne zbrajaj sam – brojke uzmi iz rezultata alata. Za usporedbe pozovi alat s grupiranjem (npr. po mjesecu).
-- Unosi su samo korisnikovi (bez partnerovih). Prijenosi između računa nisu ni troškovi ni prihodi.
+- Brojke su korisnikov dio: njegovi unosi, a troškovi i prihodi sa zajedničkog računa (njegovi i partnerovi) računaju se pola-pola. Prijenosi između računa nisu ni troškovi ni prihodi.
 - Odgovaraj kratko i jasno (najviše desetak rečenica), po potrebi s kratkim popisom. Ne spominji alate ni tehničke detalje.
 - Za pitanja o korištenju aplikacije drži se uputa niže; ako nešto ne piše u uputama, reci da nisi siguran.
 - Ne možeš ništa mijenjati u aplikaciji; objasni korisniku gdje to sam napravi. Ne daješ investicijske savjete za konkretne vrijednosnice, ali možeš dati opće savjete o štednji na temelju podataka.
@@ -3180,7 +3201,7 @@ function txRowHtml(t){
   const sign = t.kind === 'income' ? '+' : t.kind === 'expense' ? '−' : '';
   const accLbl = !tr && activeAccs().length > 1 && accById(t.account_id) ? accLabel(accById(t.account_id)) : '';
   const tagsL = [(t.tags || []).map(g => '#' + g).join(' '), t.items && t.items.length ? `🧾 ${t.items.slice(0, 3).map(x => x.name).join(', ')}${t.items.length > 3 ? ` +${t.items.length - 3}` : ''}` : ''].filter(Boolean).join(' · ');
-  const sub = [t.note && !st ? t.note : '', accLbl, tagsL, !own ? (_t("platio/la") + ' ') + (partner ? partner.display_name : '') : ''].filter(Boolean).join(' · ');
+  const sub = [t.note && !st ? t.note : '', accLbl, tagsL, !own ? (_t("platio/la") + ' ') + (partner ? partner.display_name : '') : '', isJointTx(t) ? _t("½ u tvojoj statistici") : ''].filter(Boolean).join(' · ');
   return `<div class="tx${own ? ' own' : ''}" ${own ? `data-id="${t.id}" onclick="if(!lpFired)openTx('${t.id}')"` : ''}>
     <span class="ic">${esc(icon)}</span>
     <div class="tx-main"><div>${esc(name)}${t.is_shared && !st ? (' <span class="tag">' + _t("zajedničko") + '</span>') : ''}</div>${sub ? `<div class="muted small">${esc(sub)}</div>` : ''}</div>
