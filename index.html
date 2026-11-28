@@ -65,6 +65,7 @@ html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-u
 .ic{font-size:21px;width:38px;height:38px;display:grid;place-items:center;background:var(--bg);border-radius:10px;flex:none}
 .tx-main{flex:1;min-width:0}.tx-main div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tx b{white-space:nowrap}
+.tx-amt{display:flex;flex-direction:column;align-items:flex-end;flex:none}.tx-amt span{white-space:nowrap;font-size:12px}
 .tag{font-size:11px;background:var(--acc2);color:var(--acc);padding:1px 6px;border-radius:6px;vertical-align:middle}
 .brow{padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}.brow:last-child{border-bottom:0}
 .row-btn{padding:14px 2px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;gap:8px}
@@ -831,7 +832,7 @@ const EN = {
 "upisan": "added",
 "nije upisan": "not added",
 "Potrošeno je dnevno ograničenje od 15 pitanja.": "You've used today's limit of 15 questions.",
-"½ u tvojoj statistici": "½ in your stats"
+"tvoj dio": "your share"
 };
 </script>
 <script>
@@ -999,7 +1000,7 @@ const SUPABASE_URL = 'https://qkeepkdoqjibuuudlchk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CI5Ou8vMT-Rk87g45lWg_g_wXAIR9Jb';
 // =====================================================================
 
-const VERSION = 'v17.2';
+const VERSION = 'v17.3';
 const MONTHS = [_t("Siječanj"),_t("Veljača"),_t("Ožujak"),_t("Travanj"),_t("Svibanj"),_t("Lipanj"),_t("Srpanj"),_t("Kolovoz"),_t("Rujan"),_t("Listopad"),_t("Studeni"),_t("Prosinac")];
 const DAYS = [_t("Nedjelja"),_t("Ponedjeljak"),_t("Utorak"),_t("Srijeda"),_t("Četvrtak"),_t("Petak"),_t("Subota")];
 const eur = new Intl.NumberFormat(LANG === 'en' ? 'en-IE' : 'hr-HR', {style:'currency', currency:'EUR'});
@@ -2781,7 +2782,7 @@ BRZI UNOSI: gumbi za česte troškove (kava, karta) koji se spremaju jednim dodi
 OZNAKE: npr. #ljubljana na smještaju, hrani i prijevozu – pokazuje ukupni trošak po oznaci.
 KATEGORIJE: dodavanje, uređivanje, brisanje kategorija troškova i prihoda s emoji ikonom.
 UVOZ IZVODA: CSV ili Excel izvod iz PBZ-a ili Revoluta („📂 Odaberi datoteku”); aplikacija prepozna stupce, duplikate, bankomate i nadoplate (kao prijenose), predloži kategorije i zapamti tvoje ispravke. Revolut: račun → Statements → Excel/CSV; PBZ: PBZ365 promet po računu → izvoz.
-ZAJEDNIČKI RAČUN U STATISTICI: troškovi i prihodi sa zajedničkog računa ulaze u statistiku, budžet i Pregled pola-pola – pola korisniku, pola partneru, bez obzira tko ih je upisao (u popisu unosa piše „½ u tvojoj statistici”).
+ZAJEDNIČKI RAČUN U STATISTICI: troškovi i prihodi sa zajedničkog računa ulaze u statistiku, budžet i Pregled pola-pola – pola korisniku, pola partneru, bez obzira tko ih je upisao (u popisu unosa ispod iznosa piše „tvoj dio”).
 PARTNER: povezivanje kodom (Partner → tvoj kod pošalješ partneru ili upišeš njegov). Zajednički troškovi dijele se pola-pola i aplikacija računa tko kome duguje; „Podmirio sam” bilježi plaćanje. Privatni unosi i računi ostaju skriveni.
 POSTAVKE I OSTALO: ime, računi, kategorije, ponavljajući unosi, partner, uvoz izvoda, „⬇️ Izvoz u CSV (Excel)”, Jezik (hrvatski/engleski), Tema (kao na mobitelu/svijetla/tamna), Božićni ugođaj (snijeg, lampice; automatski od 18. 11. do 6. 1.), promjena lozinke, odjava, Dijagnostika (za rješavanje problema).
 INSTALACIJA: Android Chrome ⋮ → „Instaliraj aplikaciju”; iPhone Safari → Dijeli → „Dodaj na početni zaslon”. Nova verzija se učita sama kad otvoriš aplikaciju; bez interneta se otvori, ali ne sprema. Zaboravljena lozinka: na prijavi „Zaboravljena lozinka?”.
@@ -3201,11 +3202,12 @@ function txRowHtml(t){
   const sign = t.kind === 'income' ? '+' : t.kind === 'expense' ? '−' : '';
   const accLbl = !tr && activeAccs().length > 1 && accById(t.account_id) ? accLabel(accById(t.account_id)) : '';
   const tagsL = [(t.tags || []).map(g => '#' + g).join(' '), t.items && t.items.length ? `🧾 ${t.items.slice(0, 3).map(x => x.name).join(', ')}${t.items.length > 3 ? ` +${t.items.length - 3}` : ''}` : ''].filter(Boolean).join(' · ');
-  const sub = [t.note && !st ? t.note : '', accLbl, tagsL, !own ? (_t("platio/la") + ' ') + (partner ? partner.display_name : '') : '', isJointTx(t) ? _t("½ u tvojoj statistici") : ''].filter(Boolean).join(' · ');
+  const sub = [t.note && !st ? t.note : '', accLbl, tagsL, !own ? (_t("platio/la") + ' ') + (partner ? partner.display_name : '') : ''].filter(Boolean).join(' · ');
   return `<div class="tx${own ? ' own' : ''}" ${own ? `data-id="${t.id}" onclick="if(!lpFired)openTx('${t.id}')"` : ''}>
     <span class="ic">${esc(icon)}</span>
     <div class="tx-main"><div>${esc(name)}${t.is_shared && !st ? (' <span class="tag">' + _t("zajedničko") + '</span>') : ''}</div>${sub ? `<div class="muted small">${esc(sub)}</div>` : ''}</div>
-    <b class="${t.kind === 'income' ? 'pos' : t.kind === 'expense' ? 'neg' : ''}">${sign}${amt(t.amount, 'tx')}</b></div>`;
+    ${isJointTx(t) ? `<div class="tx-amt"><b class="${t.kind === 'income' ? 'pos' : 'neg'}">${sign}${amt(t.amount, 'tx')}</b><span class="muted">${_t("tvoj dio")} ${amt(t.amount / 2, 'tx')}</span></div>`
+      : `<b class="${t.kind === 'income' ? 'pos' : t.kind === 'expense' ? 'neg' : ''}">${sign}${amt(t.amount, 'tx')}</b>`}</div>`;
 }
 
 function progress(s, b, slim){
